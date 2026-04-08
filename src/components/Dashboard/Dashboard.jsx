@@ -226,23 +226,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* BG Padel Tour */}
-      <a
-        href="https://bgpadeltour.com/bg"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="card flex items-center justify-between gap-4 border border-[#CCFF00]/30 bg-[#CCFF00]/5 hover:bg-[#CCFF00]/10 transition-colors group"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🏆</span>
-          <div>
-            <p className="text-[#CCFF00] font-bold text-sm">BG Padel Tour</p>
-            <p className="text-gray-400 text-xs mt-0.5">Официални турнири в България</p>
-          </div>
-        </div>
-        <span className="text-[#CCFF00] text-lg group-hover:translate-x-1 transition-transform flex-shrink-0">→</span>
-      </a>
-
       {/* Mobile CTA */}
       <div className="sm:hidden">
         <Link to="/matches" className="btn-neon w-full flex items-center justify-center gap-2 text-base py-3">

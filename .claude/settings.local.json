@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(node generate-icons.cjs)",
+      "Bash(npm run:*)"
     ]
   }
 }

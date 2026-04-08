@@ -14,6 +14,8 @@ export default function Navbar() {
     { to: '/matches', label: 'Мачове' },
   ]
 
+  const BG_PADEL_TOUR_URL = 'https://bgpadeltour.com/bg'
+
   async function handleLogout() {
     try {
       await logout()
@@ -69,6 +71,15 @@ export default function Navbar() {
 
           {/* User section desktop */}
           <div className="hidden md:flex items-center gap-3">
+            <a
+              href={BG_PADEL_TOUR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 rounded-lg text-sm font-medium text-[#CCFF00] bg-[#CCFF00]/10 hover:bg-[#CCFF00]/20 transition-colors flex items-center gap-1.5"
+              title="BG Padel Tour — Официални турнири"
+            >
+              🏆 <span className="hidden lg:inline">Турнири</span>
+            </a>
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="w-8 h-8 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
                 {getInitials(profile?.full_name)}
@@ -140,6 +151,15 @@ export default function Navbar() {
                 Admin Panel
               </Link>
             )}
+            <a
+              href={BG_PADEL_TOUR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-[#CCFF00] hover:bg-[#1e1e1e] transition-colors"
+            >
+              🏆 BG Padel Tour — Официални турнири
+            </a>
             <div className="border-t border-[#2a2a2a] my-2"></div>
             <button
               onClick={() => { setMenuOpen(false); handleLogout() }}
