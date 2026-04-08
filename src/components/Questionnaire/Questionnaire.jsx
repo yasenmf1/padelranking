@@ -1,115 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { getInitialRating, getLeague } from '../../lib/elo'
 
-const QUESTIONS = [
-  {
-    id: 1,
-    question: 'Колко години играете падел?',
-    options: [
-      { label: 'Никога не съм играл', points: 0 },
-      { label: 'По-малко от 1 година', points: 1 },
-      { label: '1-3 години', points: 2 },
-      { label: 'Над 3 години', points: 3 },
-    ]
-  },
-  {
-    id: 2,
-    question: 'Колко пъти седмично играете падел?',
-    options: [
-      { label: 'Не играя редовно', points: 0 },
-      { label: '1 път', points: 1 },
-      { label: '2-3 пъти', points: 2 },
-      { label: '4 или повече пъти', points: 3 },
-    ]
-  },
-  {
-    id: 3,
-    question: 'Знаете ли как да сервирате правилно в падел?',
-    options: [
-      { label: 'Не, не знам', points: 0 },
-      { label: 'Знам основите', points: 1 },
-      { label: 'Да, сервирам добре', points: 2 },
-      { label: 'Да, владея различни сервизи', points: 3 },
-    ]
-  },
-  {
-    id: 4,
-    question: 'Можете ли да играете воле (volée)?',
-    options: [
-      { label: 'Не', points: 0 },
-      { label: 'Рядко успявам', points: 1 },
-      { label: 'Да, играя воле', points: 2 },
-      { label: 'Да, играя различни видове воле', points: 3 },
-    ]
-  },
-  {
-    id: 5,
-    question: 'Знаете ли какво е "бандеха" (bandeja)?',
-    options: [
-      { label: 'Не съм чувал', points: 0 },
-      { label: 'Чувал съм, но не мога да я играя', points: 1 },
-      { label: 'Да, мога да изпълня бандеха', points: 2 },
-      { label: 'Да, изпълнявам я редовно и добре', points: 3 },
-    ]
-  },
-  {
-    id: 6,
-    question: 'Участвали ли сте в турнири по падел?',
-    options: [
-      { label: 'Никога', points: 0 },
-      { label: 'В любителски турнири', points: 1 },
-      { label: 'В местни/регионални турнири', points: 2 },
-      { label: 'В национални или международни турнири', points: 3 },
-    ]
-  },
-  {
-    id: 7,
-    question: 'Можете ли да изпълните смаш (smash)?',
-    options: [
-      { label: 'Не', points: 0 },
-      { label: 'Понякога успявам', points: 1 },
-      { label: 'Да, играя смаш', points: 2 },
-      { label: 'Да, включително смаш от стената', points: 3 },
-    ]
-  },
-  {
-    id: 8,
-    question: 'Играете ли с тактика и стратегия с партньора си?',
-    options: [
-      { label: 'Не, играем на случаен принцип', points: 0 },
-      { label: 'Рядко', points: 1 },
-      { label: 'Да, имаме основна тактика', points: 2 },
-      { label: 'Да, играем с добре разработена тактика', points: 3 },
-    ]
-  },
-  {
-    id: 9,
-    question: 'Как оценявате собственото си ниво на игра (1-5)?',
-    options: [
-      { label: '1-2 (Начинаещ)', points: 0 },
-      { label: '3 (Средно ниво)', points: 1 },
-      { label: '4 (Напреднал)', points: 2 },
-      { label: '5 (Експерт)', points: 3 },
-    ]
-  },
-  {
-    id: 10,
-    question: 'Играли ли сте други ракетни спортове (тенис, скуош, бадминтон)?',
-    options: [
-      { label: 'Никога', points: 0 },
-      { label: 'Малко опит', points: 1 },
-      { label: 'Редовно играя/играх', points: 2 },
-      { label: 'На клубно или федерално ниво', points: 3 },
-    ]
-  }
-]
-
 export default function Questionnaire() {
   const { profile, refreshProfile } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
+
+  const questions = t('questionnaire.questions')
 
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState({})
@@ -117,9 +18,9 @@ export default function Questionnaire() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const question = QUESTIONS[currentQ]
-  const isLast = currentQ === QUESTIONS.length - 1
-  const progress = Math.round(((currentQ + (selectedOption !== null ? 1 : 0)) / QUESTIONS.length) * 100)
+  const question = questions[currentQ]
+  const isLast = currentQ === questions.length - 1
+  const progress = Math.round(((currentQ + (selectedOption !== null ? 1 : 0)) / questions.length) * 100)
 
   function handleSelect(index) {
     setSelectedOption(index)
@@ -127,7 +28,8 @@ export default function Questionnaire() {
 
   function handleNext() {
     if (selectedOption === null) return
-    const newAnswers = { ...answers, [question.id]: question.options[selectedOption].points }
+    // points: option index (0,1,2,3)
+    const newAnswers = { ...answers, [currentQ]: selectedOption }
     setAnswers(newAnswers)
 
     if (isLast) {
@@ -143,7 +45,7 @@ export default function Questionnaire() {
     setError('')
     try {
       const totalPoints = Object.values(finalAnswers).reduce((sum, p) => sum + p, 0)
-      const maxPoints = QUESTIONS.length * 3
+      const maxPoints = questions.length * 3
       const score = Math.round((totalPoints / maxPoints) * 100)
       const rating = getInitialRating(score)
       const league = getLeague(rating)
@@ -164,7 +66,7 @@ export default function Questionnaire() {
       await refreshProfile()
       navigate('/')
     } catch (err) {
-      setError(err.message || 'Грешка при запис. Опитайте отново.')
+      setError(err.message || t('common.error'))
       setSubmitting(false)
     }
   }
@@ -174,8 +76,8 @@ export default function Questionnaire() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-semibold text-lg">Изчисляване на ниво...</p>
-          <p className="text-gray-400 mt-1">Моля изчакайте</p>
+          <p className="text-white font-semibold text-lg">{t('questionnaire.calculatingTitle')}</p>
+          <p className="text-gray-400 mt-1">{t('questionnaire.calculatingSubtitle')}</p>
         </div>
       </div>
     )
@@ -186,14 +88,14 @@ export default function Questionnaire() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <div className="text-4xl mb-2">🎾</div>
-          <h1 className="text-2xl font-bold text-white">Определяне на ниво</h1>
-          <p className="text-gray-400 mt-1">Отговорете на въпросите, за да определим началния ви рейтинг</p>
+          <h1 className="text-2xl font-bold text-white">{t('questionnaire.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('questionnaire.subtitle')}</p>
         </div>
 
         {/* Progress bar */}
         <div className="mb-6">
           <div className="flex justify-between text-sm text-gray-400 mb-2">
-            <span>Въпрос {currentQ + 1} от {QUESTIONS.length}</span>
+            <span>{t('questionnaire.questionOf', { current: currentQ + 1, total: questions.length })}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
@@ -208,7 +110,7 @@ export default function Questionnaire() {
           <h2 className="text-lg font-semibold text-white mb-5">{question.question}</h2>
 
           <div className="space-y-3">
-            {question.options.map((opt, idx) => (
+            {question.options.map((optLabel, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSelect(idx)}
@@ -230,7 +132,7 @@ export default function Questionnaire() {
                       </div>
                     )}
                   </div>
-                  <span className="text-sm">{opt.label}</span>
+                  <span className="text-sm">{optLabel}</span>
                 </div>
               </button>
             ))}
@@ -247,7 +149,7 @@ export default function Questionnaire() {
             disabled={selectedOption === null}
             className="btn-neon w-full mt-6"
           >
-            {isLast ? 'Завърши' : 'Следващ въпрос'}
+            {isLast ? t('questionnaire.finishBtn') : t('questionnaire.nextBtn')}
           </button>
         </div>
       </div>

@@ -1,19 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { calculateElo, getLeague } from '../../lib/elo'
 
-const TABS = ['Играчи', 'Мачове', 'Съобщения']
-
-const STATUS_LABEL = {
-  pending: { text: 'Изчакващ', cls: 'bg-yellow-500/20 text-yellow-400' },
-  approved: { text: 'Одобрен', cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
-  rejected: { text: 'Отхвърлен', cls: 'bg-red-500/20 text-red-400' },
-}
-
 export default function AdminPanel() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState('Играчи')
+  const { t } = useLanguage()
+  const [activeTab, setActiveTab] = useState('players')
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
   const [messages, setMessages] = useState([])
@@ -23,14 +17,26 @@ export default function AdminPanel() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  const TABS = [
+    { key: 'players', label: t('admin.tabs.players') },
+    { key: 'matches', label: t('admin.tabs.matches') },
+    { key: 'messages', label: t('admin.tabs.messages') },
+  ]
+
+  const STATUS_LABEL = {
+    pending: { text: t('admin.matches.statusPending'), cls: 'bg-yellow-500/20 text-yellow-400' },
+    approved: { text: t('admin.matches.statusApproved'), cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
+    rejected: { text: t('admin.matches.statusRejected'), cls: 'bg-red-500/20 text-red-400' },
+  }
+
   useEffect(() => {
-    if (activeTab === 'Играчи') fetchPlayers()
-    else if (activeTab === 'Мачове') fetchMatches()
-    else if (activeTab === 'Съобщения') fetchMessages()
+    if (activeTab === 'players') fetchPlayers()
+    else if (activeTab === 'matches') fetchMatches()
+    else if (activeTab === 'messages') fetchMessages()
   }, [activeTab])
 
   useEffect(() => {
-    if (activeTab === 'Мачове') fetchMatches()
+    if (activeTab === 'matches') fetchMatches()
   }, [matchFilter])
 
   // ── Fetch ──────────────────────────────────────────────
@@ -43,7 +49,7 @@ export default function AdminPanel() {
         .select('*, clubs(name, city)')
         .order('created_at', { ascending: false })
       if (data) setPlayers(data)
-    } catch { setError('Грешка при зареждане.') }
+    } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
   }
 
@@ -64,7 +70,7 @@ export default function AdminPanel() {
       if (matchFilter !== 'all') q = q.eq('status', matchFilter)
       const { data } = await q
       if (data) setMatches(data)
-    } catch { setError('Грешка при зареждане.') }
+    } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
   }
 
@@ -76,20 +82,20 @@ export default function AdminPanel() {
         .select('*')
         .order('created_at', { ascending: false })
       if (data) setMessages(data)
-    } catch { setError('Грешка при зареждане.') }
+    } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
   }
 
   // ── Player actions ─────────────────────────────────────
 
   async function deletePlayer(player) {
-    if (!window.confirm(`Изтрий играч "${player.full_name}" (@${player.username})?\n\nТОВА ДЕЙСТВИЕ Е НЕОБРАТИМО.`)) return
+    if (!window.confirm(t('admin.players.deleteConfirm', { name: player.full_name, username: player.username }))) return
     setActionLoading(p => ({ ...p, [player.id]: 'deleting' }))
     try {
       const { error } = await supabase.from('profiles').delete().eq('id', player.id)
       if (error) throw error
       setPlayers(prev => prev.filter(p => p.id !== player.id))
-      showSuccess('Играчът е изтрит.')
+      showSuccess(t('admin.players.deleteSuccess'))
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [player.id]: null })) }
   }
@@ -148,7 +154,9 @@ export default function AdminPanel() {
         player_id: u.id, rating: u.r, league: getLeague(u.r), match_id: match.id
       })))
 
-      showSuccess(`Одобрено! Отбор 1: ${t1Avg}→${newT1Avg} (${d1 >= 0 ? '+' : ''}${d1}) | Отбор 2: ${t2Avg}→${newT2Avg} (${d2 >= 0 ? '+' : ''}${d2})`)
+      const d1Str = (d1 >= 0 ? '+' : '') + d1
+      const d2Str = (d2 >= 0 ? '+' : '') + d2
+      showSuccess(t('admin.matches.approveSuccess', { t1: t1Avg, n1: newT1Avg, d1: d1Str, t2: t2Avg, n2: newT2Avg, d2: d2Str }))
       fetchMatches()
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
@@ -161,7 +169,7 @@ export default function AdminPanel() {
         status: 'rejected', reviewed_by: profile.id
       }).eq('id', match.id)
       if (error) throw error
-      showSuccess('Мачът е отхвърлен.')
+      showSuccess(t('admin.matches.rejectSuccess'))
       fetchMatches()
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
@@ -197,15 +205,15 @@ export default function AdminPanel() {
   const Spinner = () => (
     <div className="py-10 text-center text-gray-500">
       <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-      Зареждане...
+      {t('common.loading')}
     </div>
   )
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
-        <span className="league-badge bg-red-500/20 text-red-400 border border-red-500/30">Admin</span>
+        <h1 className="text-2xl font-bold text-white">{t('admin.title')}</h1>
+        <span className="league-badge bg-red-500/20 text-red-400 border border-red-500/30">{t('common.admin')}</span>
       </div>
 
       {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
@@ -215,14 +223,14 @@ export default function AdminPanel() {
       <div className="flex gap-2 border-b border-[#2a2a2a]">
         {TABS.map(tab => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === tab ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-transparent text-gray-400 hover:text-white'
+              activeTab === tab.key ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
-            {tab}
-            {tab === 'Съобщения' && unreadCount > 0 && (
+            {tab.label}
+            {tab.key === 'messages' && unreadCount > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                 {unreadCount}
               </span>
@@ -231,21 +239,21 @@ export default function AdminPanel() {
         ))}
       </div>
 
-      {/* ── ИГРАЧИ ── */}
-      {activeTab === 'Играчи' && (
+      {/* ── PLAYERS ── */}
+      {activeTab === 'players' && (
         <div>
-          <p className="text-gray-400 text-sm mb-4">{players.length} регистрирани играчи</p>
+          <p className="text-gray-400 text-sm mb-4">{t('admin.players.count', { n: players.length })}</p>
           {loading ? <Spinner /> : (
             <div className="overflow-x-auto card p-0">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2a2a2a]">
-                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3">Играч</th>
-                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">Имейл</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">ELO</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Мачове</th>
-                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Регистрация</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Действия</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colPlayer')}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">{t('admin.players.colEmail')}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colElo')}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colMatches')}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">{t('admin.players.colDate')}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,15 +262,15 @@ export default function AdminPanel() {
                       <td className="px-4 py-3">
                         <p className="text-white font-medium text-sm">{player.full_name}</p>
                         <p className="text-gray-500 text-xs">@{player.username}</p>
-                        {player.is_admin && <span className="text-xs text-red-400">Admin</span>}
-                        {player.is_ranked && <span className="text-xs text-[#CCFF00] ml-1">Ranked</span>}
+                        {player.is_admin && <span className="text-xs text-red-400">{t('common.admin')}</span>}
+                        {player.is_ranked && <span className="text-xs text-[#CCFF00] ml-1">{t('common.ranked')}</span>}
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
                         <span className="text-gray-400 text-xs">{player.email}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-[#CCFF00] font-bold">{player.rating}</span>
-                        <p className="text-gray-600 text-xs">{player.league}</p>
+                        <p className="text-gray-600 text-xs">{t(`leagues.${player.league}`) || player.league}</p>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-400">
                         {player.approved_matches || 0}
@@ -278,7 +286,7 @@ export default function AdminPanel() {
                         >
                           {actionLoading[player.id] === 'deleting' ? (
                             <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                          ) : 'Изтрий'}
+                          ) : t('admin.players.deleteBtn')}
                         </button>
                       </td>
                     </tr>
@@ -290,16 +298,16 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── МАЧОВЕ ── */}
-      {activeTab === 'Мачове' && (
+      {/* ── MATCHES ── */}
+      {activeTab === 'matches' && (
         <div className="space-y-4">
           {/* Filter tabs */}
           <div className="flex gap-2 flex-wrap">
             {[
-              { key: 'pending', label: 'Изчакващи' },
-              { key: 'approved', label: 'Одобрени' },
-              { key: 'rejected', label: 'Отхвърлени' },
-              { key: 'all', label: 'Всички' },
+              { key: 'pending', label: t('admin.matches.filterPending') },
+              { key: 'approved', label: t('admin.matches.filterApproved') },
+              { key: 'rejected', label: t('admin.matches.filterRejected') },
+              { key: 'all', label: t('admin.matches.filterAll') },
             ].map(f => (
               <button
                 key={f.key}
@@ -315,12 +323,12 @@ export default function AdminPanel() {
             ))}
           </div>
 
-          <p className="text-gray-400 text-sm">{matches.length} мача</p>
+          <p className="text-gray-400 text-sm">{t('admin.matches.count', { n: matches.length })}</p>
 
           {loading ? <Spinner /> : matches.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-2">📭</div>
-              <p className="text-white font-medium">Няма мачове в тази категория</p>
+              <p className="text-white font-medium">{t('admin.matches.noMatches')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -351,7 +359,7 @@ export default function AdminPanel() {
                         {/* Teams */}
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-0.5">Отбор 1</p>
+                            <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team1')}</p>
                             <p className="text-white text-sm font-medium leading-tight">{match.player1?.full_name}</p>
                             <p className="text-white text-sm font-medium leading-tight">{match.player2?.full_name}</p>
                           </div>
@@ -360,7 +368,7 @@ export default function AdminPanel() {
                             <p className="text-gray-600 text-xs">{formatSets(setsData)}</p>
                           </div>
                           <div className="flex-1 text-right">
-                            <p className="text-xs text-gray-500 mb-0.5">Отбор 2</p>
+                            <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team2')}</p>
                             <p className="text-white text-sm font-medium leading-tight">{match.player3?.full_name}</p>
                             <p className="text-white text-sm font-medium leading-tight">{match.player4?.full_name}</p>
                           </div>
@@ -376,7 +384,7 @@ export default function AdminPanel() {
                           >
                             {actionLoading[match.id] === 'approving'
                               ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                              : '✓ Одобри'}
+                              : t('admin.matches.approveBtn')}
                           </button>
                           <button
                             onClick={() => rejectMatch(match)}
@@ -385,7 +393,7 @@ export default function AdminPanel() {
                           >
                             {actionLoading[match.id] === 'rejecting'
                               ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                              : '✗ Отхвърли'}
+                              : t('admin.matches.rejectBtn')}
                           </button>
                         </div>
                       )}
@@ -398,18 +406,18 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── СЪОБЩЕНИЯ ── */}
-      {activeTab === 'Съобщения' && (
+      {/* ── MESSAGES ── */}
+      {activeTab === 'messages' && (
         <div className="space-y-3">
           <p className="text-gray-400 text-sm">
-            {messages.length} съобщения
-            {unreadCount > 0 && <span className="text-red-400 ml-2">· {unreadCount} непрочетени</span>}
+            {t('admin.messages.count', { n: messages.length })}
+            {unreadCount > 0 && <span className="text-red-400 ml-2">{t('admin.messages.unread', { n: unreadCount })}</span>}
           </p>
 
           {loading ? <Spinner /> : messages.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-2">📭</div>
-              <p className="text-white font-medium">Няма съобщения</p>
+              <p className="text-white font-medium">{t('admin.messages.noMessages')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -428,7 +436,7 @@ export default function AdminPanel() {
                         <span className="text-white font-semibold text-sm">{msg.name}</span>
                         <span className="text-gray-500 text-xs">{msg.email}</span>
                         {!msg.is_read && (
-                          <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-medium">Ново</span>
+                          <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-medium">{t('admin.messages.newBadge')}</span>
                         )}
                       </div>
                       <p className="text-gray-300 text-sm leading-relaxed">{msg.message}</p>
@@ -439,7 +447,7 @@ export default function AdminPanel() {
                         onClick={() => markRead(msg)}
                         className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] text-gray-400 hover:text-white border border-[#2a2a2a] hover:border-[#CCFF00]/30 transition-colors"
                       >
-                        ✓ Прочетено
+                        {t('admin.messages.markRead')}
                       </button>
                     )}
                   </div>

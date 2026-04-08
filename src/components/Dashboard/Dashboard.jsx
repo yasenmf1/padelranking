@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { getLeagueIcon, getLeagueColor, getLeagueProgress, getLeague } from '../../lib/elo'
 import ContactForm from '../Contact/ContactForm'
 
 export default function Dashboard() {
   const { profile } = useAuth()
+  const { t } = useLanguage()
   const [recentMatches, setRecentMatches] = useState([])
   const [stats, setStats] = useState({ total: 0, wins: 0, losses: 0 })
   const [loading, setLoading] = useState(true)
@@ -59,12 +61,12 @@ export default function Dashboard() {
   const winRate = stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
 
   const leagueNextMap = {
-    'Начинаещи': { next: 'Бронз', target: 700 },
-    'Бронз': { next: 'Сребър', target: 1000 },
-    'Сребър': { next: 'Злато', target: 1300 },
+    'Начинаещи': { next: t('leagues.Бронз'), key: 'Бронз', target: 700 },
+    'Бронз': { next: t('leagues.Сребър'), key: 'Сребър', target: 1000 },
+    'Сребър': { next: t('leagues.Злато'), key: 'Злато', target: 1300 },
     'Злато': { next: null, target: null }
   }
-  const nextLeague = leagueNextMap[league]
+  const nextLeague = leagueNextMap[league] || { next: null, target: null }
 
   function getOpponent(match) {
     return match.player1_id === profile.id ? match.player2 : match.player1
@@ -75,8 +77,8 @@ export default function Dashboard() {
   }
 
   function getMatchResult(match) {
-    if (match.winner_id === profile.id) return { label: 'Победа', cls: 'text-[#CCFF00]' }
-    return { label: 'Загуба', cls: 'text-red-400' }
+    if (match.winner_id === profile.id) return { label: t('dashboard.win'), cls: 'text-[#CCFF00]' }
+    return { label: t('dashboard.loss'), cls: 'text-red-400' }
   }
 
   function formatSets(setsData) {
@@ -90,12 +92,12 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">
-            Здравей, <span className="text-[#CCFF00]">{profile.full_name?.split(' ')[0]}</span>! 👋
+            {t('dashboard.greeting')} <span className="text-[#CCFF00]">{profile.full_name?.split(' ')[0]}</span>! 👋
           </h1>
           <p className="text-gray-400 mt-0.5">@{profile.username}</p>
         </div>
         <Link to="/matches" className="btn-neon hidden sm:flex items-center gap-2">
-          <span>+</span> Запиши мач
+          {t('dashboard.addMatch')}
         </Link>
       </div>
 
@@ -103,7 +105,7 @@ export default function Dashboard() {
       <div className="card neon-glow">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="text-gray-400 text-sm mb-1">Текущ рейтинг</p>
+            <p className="text-gray-400 text-sm mb-1">{t('dashboard.currentRating')}</p>
             <div className="flex items-baseline gap-2">
               <span className="text-6xl font-black text-[#CCFF00] neon-text">{rating}</span>
               <span className="text-gray-400 text-sm">ELO</span>
@@ -114,10 +116,10 @@ export default function Dashboard() {
               className="league-badge text-lg px-4 py-2"
               style={{ backgroundColor: leagueColor + '22', color: leagueColor, border: `1px solid ${leagueColor}55` }}
             >
-              {leagueIcon} {league}
+              {leagueIcon} {t(`leagues.${league}`)}
             </div>
             {profile.is_ranked && (
-              <p className="text-xs text-gray-500 mt-2">Ranked Player</p>
+              <p className="text-xs text-gray-500 mt-2">{t('common.ranked')}</p>
             )}
           </div>
         </div>
@@ -126,7 +128,7 @@ export default function Dashboard() {
         {nextLeague.next && (
           <div className="mt-5">
             <div className="flex justify-between text-xs text-gray-400 mb-1.5">
-              <span>{league}</span>
+              <span>{t(`leagues.${league}`)}</span>
               <span>{nextLeague.next} ({nextLeague.target} ELO)</span>
             </div>
             <div className="h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
@@ -136,13 +138,13 @@ export default function Dashboard() {
               ></div>
             </div>
             <p className="text-xs text-gray-500 mt-1.5">
-              {nextLeague.target - rating} точки до {nextLeague.next}
+              {t('dashboard.pointsTo', { points: nextLeague.target - rating, league: nextLeague.next })}
             </p>
           </div>
         )}
         {!nextLeague.next && (
           <div className="mt-4 p-3 bg-[#ffd700]/10 border border-[#ffd700]/30 rounded-lg text-center">
-            <p className="text-[#ffd700] font-semibold text-sm">🏆 Достигнахте максималната лига!</p>
+            <p className="text-[#ffd700] font-semibold text-sm">{t('dashboard.maxLeague')}</p>
           </div>
         )}
       </div>
@@ -150,10 +152,10 @@ export default function Dashboard() {
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Общо мачове', value: stats.total, icon: '🎾' },
-          { label: 'Победи', value: stats.wins, icon: '🏆' },
-          { label: 'Загуби', value: stats.losses, icon: '❌' },
-          { label: 'Win Rate', value: `${winRate}%`, icon: '📊' },
+          { label: t('dashboard.stats.total'), value: stats.total, icon: '🎾' },
+          { label: t('dashboard.stats.wins'), value: stats.wins, icon: '🏆' },
+          { label: t('dashboard.stats.losses'), value: stats.losses, icon: '❌' },
+          { label: t('dashboard.stats.winRate'), value: `${winRate}%`, icon: '📊' },
         ].map(stat => (
           <div key={stat.label} className="card text-center">
             <div className="text-2xl mb-1">{stat.icon}</div>
@@ -169,13 +171,12 @@ export default function Dashboard() {
           <div className="flex items-start gap-3">
             <span className="text-2xl">📋</span>
             <div>
-              <p className="text-white font-semibold">Как да влезете в класацията?</p>
+              <p className="text-white font-semibold">{t('dashboard.howToRank')}</p>
               <p className="text-gray-400 text-sm mt-1">
-                Трябват ви минимум <span className="text-[#CCFF00] font-semibold">5 одобрени мача</span>, за да се появите в официалната класация.
-                Имате <span className="text-white font-semibold">{profile.approved_matches || 0}</span> от 5 необходими.
+                {t('dashboard.rankInfo', { n: '5', current: String(profile.approved_matches || 0) })}
               </p>
               <Link to="/matches" className="mt-3 inline-block text-sm text-[#CCFF00] hover:underline">
-                Запишете мач →
+                {t('dashboard.recordMatch')}
               </Link>
             </div>
           </div>
@@ -185,21 +186,21 @@ export default function Dashboard() {
       {/* Recent matches */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">Последни мачове</h2>
-          <Link to="/matches" className="text-sm text-[#CCFF00] hover:underline">Виж всички</Link>
+          <h2 className="text-lg font-bold text-white">{t('dashboard.recentMatches')}</h2>
+          <Link to="/matches" className="text-sm text-[#CCFF00] hover:underline">{t('dashboard.seeAll')}</Link>
         </div>
 
         {loading ? (
           <div className="py-8 text-center text-gray-500">
             <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            Зареждане...
+            {t('common.loading')}
           </div>
         ) : recentMatches.length === 0 ? (
           <div className="py-8 text-center text-gray-500">
             <div className="text-4xl mb-2">🎾</div>
-            <p>Нямате одобрени мачове все още.</p>
+            <p>{t('dashboard.noMatches')}</p>
             <Link to="/matches" className="mt-3 inline-block btn-neon text-sm">
-              Запишете първия си мач
+              {t('dashboard.recordFirst')}
             </Link>
           </div>
         ) : (
@@ -212,7 +213,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-8 rounded-full ${match.winner_id === profile.id ? 'bg-[#CCFF00]' : 'bg-red-500'}`}></div>
                     <div>
-                      <p className="text-white text-sm font-medium">{opponent?.full_name || 'Непознат'}</p>
+                      <p className="text-white text-sm font-medium">{opponent?.full_name || '—'}</p>
                       <p className="text-gray-500 text-xs">{formatSets(match.sets_data)} · {formatDate(match.played_at)}</p>
                     </div>
                   </div>
@@ -230,7 +231,7 @@ export default function Dashboard() {
       {/* Mobile CTA */}
       <div className="sm:hidden">
         <Link to="/matches" className="btn-neon w-full flex items-center justify-center gap-2 text-base py-3">
-          <span>+</span> Запиши мач
+          {t('dashboard.addMatch')}
         </Link>
       </div>
 
