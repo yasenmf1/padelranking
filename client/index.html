@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Падел България</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #2e7d32;
+      --green-light: #4caf50;
+      --green-dark: #1b5e20;
+      --accent: #ff6f00;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #212121;
+      --muted: #757575;
+      --border: #e0e0e0;
+      --radius: 10px;
+      --shadow: 0 2px 8px rgba(0,0,0,.12);
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--green-dark);
+      color: #fff;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 58px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+    nav .logo { font-size: 1.3rem; font-weight: 700; letter-spacing: .5px; margin-right: auto; cursor: pointer; }
+    nav .logo span { color: #ffcc02; }
+    nav button {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,.4);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: .85rem;
+      transition: background .2s;
+    }
+    nav button:hover, nav button.active { background: rgba(255,255,255,.15); }
+    nav button.cta { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    nav button.cta:hover { background: #e65100; border-color: #e65100; }
+    #nav-user { font-size: .85rem; opacity: .85; }
+
+    /* ── LAYOUT ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 28px 16px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 1.2rem; color: var(--green-dark); margin-bottom: 16px; }
+    .card h3 { font-size: 1rem; color: var(--green); margin-bottom: 10px; }
+
+    /* ── GRID ── */
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+
+    /* ── FORMS ── */
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 4px; font-weight: 600; letter-spacing: .3px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: .92rem;
+      transition: border-color .2s;
+      background: #fafafa;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--green-light); background: #fff; }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .btn {
+      display: inline-block;
+      padding: 9px 20px;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      font-size: .92rem;
+      font-weight: 600;
+      transition: opacity .2s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-accent:hover { opacity: .88; }
+    .btn-outline { background: transparent; border: 1.5px solid var(--green); color: var(--green); }
+    .btn-outline:hover { background: var(--green); color: #fff; }
+    .btn-danger { background: #c62828; color: #fff; }
+    .btn-danger:hover { opacity: .88; }
+    .btn-sm { padding: 5px 12px; font-size: .8rem; }
+    .btn-block { display: block; width: 100%; text-align: center; }
+
+    /* ── MISC ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .badge-green { background: #e8f5e9; color: #2e7d32; }
+    .badge-orange { background: #fff3e0; color: #e65100; }
+    .badge-blue { background: #e3f2fd; color: #1565c0; }
+    .badge-red { background: #ffebee; color: #c62828; }
+
+    .alert { padding: 12px 16px; border-radius: 7px; margin-bottom: 16px; font-size: .9rem; }
+    .alert-error { background: #ffebee; color: #c62828; border-left: 4px solid #c62828; }
+    .alert-success { background: #e8f5e9; color: #2e7d32; border-left: 4px solid #2e7d32; }
+
+    .tag { display: inline-block; background: #e8f5e9; color: var(--green-dark); border-radius: 4px; padding: 2px 8px; font-size: .78rem; margin: 2px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th { text-align: left; padding: 10px 12px; background: #f1f8e9; color: var(--green-dark); font-weight: 700; border-bottom: 2px solid var(--green-light); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: #fafff8; }
+
+    .hero {
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--green) 60%, #388e3c 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 48px 32px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .hero h1 { font-size: 2.2rem; margin-bottom: 10px; }
+    .hero p { font-size: 1.1rem; opacity: .88; margin-bottom: 24px; }
+    .hero .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-box { flex: 1; min-width: 120px; background: #e8f5e9; border-radius: 8px; padding: 16px; text-align: center; }
+    .stat-box .num { font-size: 2rem; font-weight: 800; color: var(--green-dark); }
+    .stat-box .lbl { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+    .slot-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .slot {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all .15s;
+    }
+    .slot.free { background: #e8f5e9; color: var(--green-dark); border-color: var(--green-light); }
+    .slot.free:hover { background: var(--green); color: #fff; }
+    .slot.busy { background: #ffebee; color: #b71c1c; cursor: not-allowed; opacity: .7; }
+    .slot.selected { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.22);
+      position: relative;
+    }
+    .modal h2 { margin-bottom: 18px; color: var(--green-dark); }
+    .modal-close {
+      position: absolute; top: 12px; right: 16px;
+      background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--muted);
+    }
+
+    .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; gap: 4px; }
+    .tab { padding: 8px 18px; cursor: pointer; border-radius: 7px 7px 0 0; font-weight: 600; font-size: .88rem; color: var(--muted); border: 2px solid transparent; border-bottom: none; }
+    .tab.active { color: var(--green-dark); border-color: var(--border) var(--border) #fff; background: #fff; margin-bottom: -2px; }
+
+    .club-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: transform .2s, box-shadow .2s;
+      cursor: pointer;
+    }
+    .club-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+    .club-card .club-img {
+      height: 110px;
+      background: linear-gradient(135deg, var(--green) 0%, #81c784 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem;
+    }
+    .club-card .club-body { padding: 14px; }
+    .club-card .club-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+    .club-card .club-meta { font-size: .8rem; color: var(--muted); }
+
+    @media (max-width: 600px) {
+      nav button span { display: none; }
+      .hero h1 { font-size: 1.5rem; }
+      main { padding: 16px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav>
+  <div class="logo" onclick="showPage('home')">🎾 Падел <span>България</span></div>
+  <button onclick="showPage('clubs')"><span>Клубове</span></button>
+  <button onclick="showPage('partners')"><span>Партньори</span></button>
+  <button onclick="showPage('rankings')"><span>Класация</span></button>
+  <div id="nav-user"></div>
+  <button id="nav-login-btn" class="cta" onclick="openAuthModal('login')">Вход</button>
+  <button id="nav-logout-btn" style="display:none" onclick="logout()">Изход</button>
+</nav>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main>
+
+  <!-- ── HOME ── -->
+  <div id="page-home" class="page active">
+    <div class="hero">
+      <h1>Добре дошли в Падел България! 🎾</h1>
+      <p>Намери клуб, резервирай корт, открий партньор и следи класацията.</p>
+      <div class="actions">
+        <button class="btn btn-accent" onclick="showPage('clubs')">Намери клуб</button>
+        <button class="btn btn-outline" style="color:#fff;border-color:#fff" onclick="showPage('partners')">Търси партньор</button>
+        <button class="btn btn-outline" style="color:#fff;border-color:#fff" onclick="showPage('rankings')">Класация</button>
+      </div>
+    </div>
+    <div class="stat-row" id="home-stats">
+      <div class="stat-box"><div class="num" id="stat-clubs">–</div><div class="lbl">Клуба</div></div>
+      <div class="stat-box"><div class="num" id="stat-players">–</div><div class="lbl">Играчи</div></div>
+      <div class="stat-box"><div class="num" id="stat-bookings">–</div><div class="lbl">Резервации</div></div>
+      <div class="stat-box"><div class="num" id="stat-cities">–</div><div class="lbl">Града</div></div>
+    </div>
+    <div class="card">
+      <h2>Как работи?</h2>
+      <div class="grid grid-3" style="text-align:center;margin-top:10px">
+        <div><div style="font-size:2rem">🏢</div><h3 style="margin:8px 0 4px">Регистрирай клуб</h3><p style="font-size:.85rem;color:var(--muted)">Клубовете регистрират кортовете си и управляват резервациите.</p></div>
+        <div><div style="font-size:2rem">📅</div><h3 style="margin:8px 0 4px">Резервирай корт</h3><p style="font-size:.85rem;color:var(--muted)">Избери дата, час и корт – резервацията е потвърдена мигновено.</p></div>
+        <div><div style="font-size:2rem">🤝</div><h3 style="margin:8px 0 4px">Намери партньор</h3><p style="font-size:.85rem;color:var(--muted)">Публикувай обява и намери съиграчи за следващия си мач.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CLUBS ── -->
+  <div id="page-clubs" class="page">
+    <div class="card">
+      <h2>Падел клубове в България</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <input id="club-search" placeholder="Търси по име..." style="max-width:240px" oninput="loadClubs()" />
+        <select id="club-city-filter" onchange="loadClubs()" style="max-width:180px">
+          <option value="">Всички градове</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="add-club-btn" style="display:none" onclick="showAddClubForm()">+ Добави клуб</button>
+      </div>
+      <div id="clubs-list" class="grid grid-2">
+        <p style="color:var(--muted)">Зареждане...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CLUB DETAIL ── -->
+  <div id="page-club-detail" class="page">
+    <button class="btn btn-outline btn-sm" onclick="showPage('clubs')" style="margin-bottom:16px">← Обратно към клубовете</button>
+    <div id="club-detail-content"></div>
+  </div>
+
+  <!-- ── ADD CLUB ── -->
+  <div id="page-add-club" class="page">
+    <div class="card" style="max-width:600px;margin:0 auto">
+      <h2>Регистрирай падел клуб</h2>
+      <div id="add-club-alert"></div>
+      <div class="form-group"><label>Ime на клуба *</label><input id="ac-name" placeholder="Падел Клуб София" /></div>
+      <div class="form-group"><label>Град *</label><input id="ac-city" placeholder="София" /></div>
+      <div class="form-group"><label>Адрес *</label><input id="ac-address" placeholder="ул. Пример 1" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label>Телефон</label><input id="ac-phone" placeholder="+359 88 123 4567" /></div>
+        <div class="form-group"><label>Имейл</label><input id="ac-email" type="email" placeholder="info@club.bg" /></div>
+        <div class="form-group"><label>Брой кортове</label><input id="ac-courts" type="number" min="1" max="20" value="2" /></div>
+        <div class="form-group"><label>Цена/час (лв)</label><input id="ac-price" type="number" min="5" step="0.5" value="20" /></div>
+        <div class="form-group"><label>Отваря</label><input id="ac-open" type="time" value="08:00" /></div>
+        <div class="form-group"><label>Затваря</label><input id="ac-close" type="time" value="22:00" /></div>
+      </div>
+      <div class="form-group"><label>Описание</label><textarea id="ac-desc" placeholder="Разкажи за клуба..."></textarea></div>
+      <div class="form-group"><label>Уебсайт</label><input id="ac-website" placeholder="https://..." /></div>
+      <button class="btn btn-primary btn-block" onclick="submitAddClub()">Регистрирай клуба</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="showPage('clubs')">Отказ</button>
+    </div>
+  </div>
+
+  <!-- ── PARTNERS ── -->
+  <div id="page-partners" class="page">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start" class="partner-layout">
+      <div class="card">
+        <h2>Намери партньор</h2>
+        <div class="form-group">
+          <label>Град</label>
+          <select id="partner-city-filter" onchange="loadPartners()">
+            <option value="">Всички градове</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Дата</label>
+          <input type="date" id="partner-date-filter" onchange="loadPartners()" />
+        </div>
+        <div id="partners-list"><p style="color:var(--muted)">Зареждане...</p></div>
+      </div>
+      <div class="card">
+        <h2>Публикувай обява</h2>
+        <div id="partner-form-container">
+          <div id="partner-alert"></div>
+          <div class="form-group"><label>Град *</label><input id="pr-city" placeholder="София" /></div>
+          <div class="form-group"><label>Дата *</label><input type="date" id="pr-date" /></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group"><label>От час *</label><input type="time" id="pr-from" /></div>
+            <div class="form-group"><label>До час *</label><input type="time" id="pr-to" /></div>
+          </div>
+          <div class="form-group">
+            <label>Ниво на играч</label>
+            <select id="pr-level">
+              <option value="">Всякакво</option>
+              <option value="beginner">Начинаещ</option>
+              <option value="intermediate">Средно</option>
+              <option value="advanced">Напреднал</option>
+              <option value="pro">Про</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Съобщение</label><textarea id="pr-message" placeholder="Допълнителна информация..."></textarea></div>
+          <button class="btn btn-primary btn-block" onclick="submitPartnerRequest()">Публикувай</button>
+        </div>
+        <div id="partner-login-prompt" style="display:none">
+          <p style="color:var(--muted);text-align:center">Влез в системата за да публикуваш обява.</p>
+          <button class="btn btn-primary btn-block" style="margin-top:12px" onclick="openAuthModal('login')">Вход / Регистрация</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RANKINGS ── -->
+  <div id="page-rankings" class="page">
+    <div class="card">
+      <h2>Национална класация</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <select id="rank-city" onchange="loadRankings()" style="max-width:180px">
+          <option value="">Всички градове</option>
+        </select>
+        <select id="rank-level" onchange="loadRankings()" style="max-width:180px">
+          <option value="">Всички нива</option>
+          <option value="beginner">Начинаещ</option>
+          <option value="intermediate">Средно</option>
+          <option value="advanced">Напреднал</option>
+          <option value="pro">Про</option>
+        </select>
+      </div>
+      <div id="rankings-table"><p style="color:var(--muted)">Зареждане...</p></div>
+    </div>
+  </div>
+
+  <!-- ── PROFILE ── -->
+  <div id="page-profile" class="page">
+    <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start" class="profile-layout">
+      <div class="card" style="text-align:center">
+        <div style="font-size:4rem;margin-bottom:10px">👤</div>
+        <div id="profile-name" style="font-size:1.2rem;font-weight:700"></div>
+        <div id="profile-level" style="margin:6px 0"></div>
+        <div id="profile-city" style="color:var(--muted);font-size:.88rem"></div>
+        <hr style="margin:14px 0;border-color:var(--border)">
+        <div style="display:flex;justify-content:space-around">
+          <div><div id="profile-rating" style="font-size:1.5rem;font-weight:800;color:var(--green-dark)"></div><div style="font-size:.75rem;color:var(--muted)">Рейтинг</div></div>
+          <div><div id="profile-wins" style="font-size:1.5rem;font-weight:800;color:var(--green)"></div><div style="font-size:.75rem;color:var(--muted)">Победи</div></div>
+          <div><div id="profile-losses" style="font-size:1.5rem;font-weight:800;color:#c62828"></div><div style="font-size:.75rem;color:var(--muted)">Загуби</div></div>
+        </div>
+        <hr style="margin:14px 0;border-color:var(--border)">
+        <button class="btn btn-outline btn-sm" onclick="showEditProfile()">Редактирай профила</button>
+      </div>
+      <div>
+        <div class="tabs">
+          <div class="tab active" onclick="switchProfileTab('bookings', this)">Резервации</div>
+          <div class="tab" onclick="switchProfileTab('matches', this)">Мачове</div>
+          <div class="tab" onclick="switchProfileTab('record', this)">Запиши мач</div>
+        </div>
+        <div id="profile-tab-bookings"><div id="my-bookings"><p style="color:var(--muted)">Зареждане...</p></div></div>
+        <div id="profile-tab-matches" style="display:none"><p style="color:var(--muted)">Предстои...</p></div>
+        <div id="profile-tab-record" style="display:none">
+          <div class="card">
+            <h3>Запиши резултат от мач</h3>
+            <div id="match-alert"></div>
+            <div class="form-group"><label>Противник (ID или имейл)</label><input id="m-player2" placeholder="ID на противника" /></div>
+            <div class="form-group"><label>Дата</label><input type="date" id="m-date" /></div>
+            <div class="form-group"><label>Резултат</label><input id="m-score" placeholder="6-4, 7-5" /></div>
+            <div class="form-group">
+              <label>Победител</label>
+              <select id="m-winner">
+                <option value="1">Аз победих</option>
+                <option value="2">Противникът победи</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="submitMatch()">Запиши мача</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══════════════ AUTH MODAL ═══════════════ -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAuthModal()">×</button>
+    <div class="tabs" style="margin-bottom:16px">
+      <div class="tab active" id="tab-login" onclick="switchAuthTab('login')">Вход</div>
+      <div class="tab" id="tab-register" onclick="switchAuthTab('register')">Регистрация</div>
+    </div>
+    <div id="auth-alert"></div>
+
+    <!-- Login -->
+    <div id="auth-login-form">
+      <div class="form-group"><label>Имейл</label><input id="l-email" type="email" placeholder="your@email.com" /></div>
+      <div class="form-group"><label>Парола</label><input id="l-password" type="password" placeholder="••••••" /></div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">Вход</button>
+    </div>
+
+    <!-- Register -->
+    <div id="auth-register-form" style="display:none">
+      <div class="form-group"><label>Три имена *</label><input id="r-name" placeholder="Иван Иванов" /></div>
+      <div class="form-group"><label>Имейл *</label><input id="r-email" type="email" placeholder="your@email.com" /></div>
+      <div class="form-group"><label>Парола *</label><input id="r-password" type="password" placeholder="Мин. 6 символа" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>Град</label><input id="r-city" placeholder="София" /></div>
+        <div class="form-group"><label>Телефон</label><input id="r-phone" placeholder="+359 88..." /></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Ниво</label>
+          <select id="r-level">
+            <option value="beginner">Начинаещ</option>
+            <option value="intermediate">Средно</option>
+            <option value="advanced">Напреднал</option>
+            <option value="pro">Про</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Регистрирам се като</label>
+          <select id="r-role">
+            <option value="player">Играч</option>
+            <option value="club_admin">Администратор на клуб</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doRegister()">Създай акаунт</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BOOKING MODAL ═══════════════ -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" onclick="closeBookingModal()">×</button>
+    <h2 id="booking-modal-title">Резервирай корт</h2>
+    <div id="booking-alert"></div>
+    <div id="booking-content"></div>
+  </div>
+</div>
+
+<style>
+  @media (max-width: 700px) {
+    .partner-layout, .profile-layout { grid-template-columns: 1fr !important; }
+    .profile-layout > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; text-align: left; }
+  }
+</style>
+
+<script>
+const API = '/api';
+let currentUser = null;
+let token = localStorage.getItem('padel_token');
+
+// ── State for booking
+let bookingState = { clubId: null, courtId: null, date: null, slot: null, pricePerHour: null };
+
+// ═══════════════ INIT ═══════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  if (token) await fetchMe();
+  updateNav();
+  loadCities();
+  loadHomeStats();
+  loadClubs();
+  loadPartners();
+  loadRankings();
+
+  // set default date for partner request
+  document.getElementById('pr-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('m-date').value = new Date().toISOString().slice(0,10);
+});
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(API + path, { headers, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Грешка');
+  return data;
+}
+
+// ═══════════════ NAV & AUTH ═══════════════
+function updateNav() {
+  const loginBtn = document.getElementById('nav-login-btn');
+  const logoutBtn = document.getElementById('nav-logout-btn');
+  const navUser = document.getElementById('nav-user');
+  if (currentUser) {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = '';
+    navUser.innerHTML = `<span style="cursor:pointer" onclick="showPage('profile')">👤 ${currentUser.name.split(' ')[0]}</span>`;
+    document.getElementById('add-club-btn').style.display = currentUser.role === 'club_admin' || currentUser.role === 'admin' ? '' : 'none';
+    document.getElementById('partner-form-container').style.display = '';
+    document.getElementById('partner-login-prompt').style.display = 'none';
+  } else {
+    loginBtn.style.display = '';
+    logoutBtn.style.display = 'none';
+    navUser.innerHTML = '';
+    document.getElementById('add-club-btn').style.display = 'none';
+    document.getElementById('partner-form-container').style.display = 'none';
+    document.getElementById('partner-login-prompt').style.display = '';
+  }
+}
+
+async function fetchMe() {
+  try {
+    currentUser = await api('/auth/me');
+  } catch {
+    token = null;
+    localStorage.removeItem('padel_token');
+    currentUser = null;
+  }
+}
+
+function logout() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('padel_token');
+  updateNav();
+  showPage('home');
+}
+
+// ═══════════════ PAGES ═══════════════
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  if (page === 'profile') loadProfile();
+  window.scrollTo(0, 0);
+}
+
+// ═══════════════ AUTH MODAL ═══════════════
+function openAuthModal(tab) {
+  document.getElementById('auth-modal').classList.add('open');
+  switchAuthTab(tab);
+}
+function closeAuthModal() {
+  document.getElementById('auth-modal').classList.remove('open');
+  document.getElementById('auth-alert').innerHTML = '';
+}
+function switchAuthTab(tab) {
+  document.getElementById('auth-login-form').style.display = tab === 'login' ? '' : 'none';
+  document.getElementById('auth-register-form').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+}
+
+async function doLogin() {
+  const email = document.getElementById('l-email').value;
+  const password = document.getElementById('l-password').value;
+  try {
+    const data = await api('/auth/login', { method: 'POST', body: { email, password } });
+    token = data.token;
+    currentUser = data.user;
+    localStorage.setItem('padel_token', token);
+    closeAuthModal();
+    updateNav();
+    showAlert('auth-alert', 'success', 'Успешен вход!');
+  } catch (e) {
+    showAlert('auth-alert', 'error', e.message);
+  }
+}
+
+async function doRegister() {
+  const body = {
+    name: document.getElementById('r-name').value,
+    email: document.getElementById('r-email').value,
+    password: document.getElementById('r-password').value,
+    city: document.getElementById('r-city').value,
+    phone: document.getElementById('r-phone').value,
+    level: document.getElementById('r-level').value,
+    role: document.getElementById('r-role').value,
+  };
+  try {
+    const data = await api('/auth/register', { method: 'POST', body });
+    token = data.token;
+    currentUser = data.user;
+    localStorage.setItem('padel_token', token);
+    closeAuthModal();
+    updateNav();
+  } catch (e) {
+    showAlert('auth-alert', 'error', e.message);
+  }
+}
+
+// ═══════════════ CITIES ═══════════════
+async function loadCities() {
+  try {
+    const cities = await api('/cities');
+    ['club-city-filter','partner-city-filter','rank-city'].forEach(id => {
+      const sel = document.getElementById(id);
+      const cur = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      cities.forEach(c => { const o = new Option(c, c); sel.add(o); });
+      sel.value = cur;
+    });
+  } catch {}
+}
+
+// ═══════════════ HOME STATS ═══════════════
+async function loadHomeStats() {
+  try {
+    const [clubs, rankings] = await Promise.all([api('/clubs'), api('/rankings')]);
+    document.getElementById('stat-clubs').textContent = clubs.length;
+    document.getElementById('stat-players').textContent = rankings.length;
+    document.getElementById('stat-cities').textContent = [...new Set(clubs.map(c => c.city))].length;
+    document.getElementById('stat-bookings').textContent = '–';
+  } catch {}
+}
+
+// ═══════════════ CLUBS ═══════════════
+async function loadClubs() {
+  const search = document.getElementById('club-search').value;
+  const city = document.getElementById('club-city-filter').value;
+  let qs = '';
+  if (search) qs += `search=${encodeURIComponent(search)}&`;
+  if (city) qs += `city=${encodeURIComponent(city)}&`;
+  const el = document.getElementById('clubs-list');
+  try {
+    const clubs = await api('/clubs?' + qs);
+    if (!clubs.length) { el.innerHTML = '<p style="color:var(--muted)">Няма намерени клубове.</p>'; return; }
+    el.innerHTML = clubs.map(c => `
+      <div class="club-card" onclick="openClub('${c.id}')">
+        <div class="club-img">🎾</div>
+        <div class="club-body">
+          <div class="club-name">${esc(c.name)}</div>
+          <div class="club-meta">📍 ${esc(c.city)} &nbsp;•&nbsp; ${c.courts_count} корт${c.courts_count !== 1 ? 'а' : ''}  &nbsp;•&nbsp; ${c.price_per_hour} лв/ч</div>
+          <div style="margin-top:6px;font-size:.8rem;color:var(--muted)">🕐 ${c.open_time} – ${c.close_time}</div>
+          ${c.description ? `<div style="font-size:.82rem;color:var(--muted);margin-top:6px;overflow:hidden;max-height:40px">${esc(c.description)}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+async function openClub(id) {
+  showPage('club-detail');
+  const el = document.getElementById('club-detail-content');
+  el.innerHTML = '<p style="color:var(--muted)">Зареждане...</p>';
+  try {
+    const club = await api('/clubs/' + id);
+    const today = new Date().toISOString().slice(0,10);
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px">
+          <div>
+            <h2 style="font-size:1.6rem">${esc(club.name)}</h2>
+            <div style="color:var(--muted);margin:6px 0">📍 ${esc(club.address)}, ${esc(club.city)}</div>
+            ${club.phone ? `<div style="font-size:.88rem">📞 ${esc(club.phone)}</div>` : ''}
+            ${club.email ? `<div style="font-size:.88rem">✉️ ${esc(club.email)}</div>` : ''}
+            ${club.website ? `<div style="font-size:.88rem">🌐 <a href="${esc(club.website)}" target="_blank">${esc(club.website)}</a></div>` : ''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:1.8rem;font-weight:800;color:var(--green-dark)">${club.price_per_hour} лв<span style="font-size:1rem;font-weight:400">/час</span></div>
+            <div style="font-size:.85rem;color:var(--muted)">🕐 ${club.open_time} – ${club.close_time}</div>
+            <div style="margin-top:6px"><span class="badge badge-green">${club.courts_count} корта</span></div>
+          </div>
+        </div>
+        ${club.description ? `<p style="margin-top:14px;color:var(--muted)">${esc(club.description)}</p>` : ''}
+      </div>
+      <div class="card">
+        <h2>Резервирай корт</h2>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <div><label style="font-size:.82rem;font-weight:600;color:var(--muted)">Дата</label>
+          <input type="date" id="avail-date" value="${today}" min="${today}" onchange="loadAvailability('${id}')" style="margin-top:4px" /></div>
+        </div>
+        <div id="availability-section">
+          <button class="btn btn-primary btn-sm" onclick="loadAvailability('${id}')">Провери наличност</button>
+        </div>
+      </div>
+    `;
+    loadAvailability(id);
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+async function loadAvailability(clubId) {
+  const date = document.getElementById('avail-date')?.value;
+  if (!date) return;
+  const el = document.getElementById('availability-section');
+  el.innerHTML = '<p style="color:var(--muted)">Зареждане...</p>';
+  try {
+    const data = await api(`/clubs/${clubId}/availability?date=${date}`);
+    bookingState.clubId = clubId;
+    bookingState.date = date;
+    bookingState.pricePerHour = data.price_per_hour;
+
+    el.innerHTML = data.courts.map(c => `
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:8px">${esc(c.court.name)} <span class="tag">${c.court.indoor ? 'На закрито' : 'На открито'}</span></div>
+        <div class="slot-grid">
+          ${c.slots.map(s => `
+            <div class="slot ${s.available ? 'free' : 'busy'}"
+              onclick="${s.available ? `selectSlot('${clubId}','${c.court.id}','${s.start}','${s.end}')` : ''}">
+              ${s.start}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+function selectSlot(clubId, courtId, start, end) {
+  if (!currentUser) { openAuthModal('login'); return; }
+  bookingState = { clubId, courtId, date: document.getElementById('avail-date').value, slot: { start, end }, pricePerHour: bookingState.pricePerHour };
+  openBookingModal();
+}
+
+function openBookingModal() {
+  const { date, slot, pricePerHour } = bookingState;
+  document.getElementById('booking-alert').innerHTML = '';
+  document.getElementById('booking-modal-title').textContent = `Резервация – ${date}`;
+  document.getElementById('booking-content').innerHTML = `
+    <p>⏰ <strong>${slot.start} – ${slot.end}</strong></p>
+    <p style="margin:8px 0">💰 Цена: <strong>${pricePerHour} лв</strong></p>
+    <div class="form-group" style="margin-top:14px"><label>Бележки (по желание)</label><textarea id="booking-notes" placeholder="Ако имаш нещо да кажеш на клуба..."></textarea></div>
+    <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="confirmBooking()">Потвърди резервацията</button>
+  `;
+  document.getElementById('booking-modal').classList.add('open');
+}
+function closeBookingModal() {
+  document.getElementById('booking-modal').classList.remove('open');
+}
+
+async function confirmBooking() {
+  const { clubId, courtId, date, slot } = bookingState;
+  try {
+    const data = await api('/bookings', {
+      method: 'POST',
+      body: { court_id: courtId, club_id: clubId, date, start_time: slot.start, end_time: slot.end, notes: document.getElementById('booking-notes').value }
+    });
+    showAlert('booking-alert', 'success', `✅ ${data.message} – ${data.total_price} лв`);
+    loadAvailability(clubId);
+  } catch (e) {
+    showAlert('booking-alert', 'error', e.message);
+  }
+}
+
+function showAddClubForm() {
+  if (!currentUser) { openAuthModal('login'); return; }
+  showPage('add-club');
+}
+
+async function submitAddClub() {
+  const body = {
+    name: document.getElementById('ac-name').value,
+    city: document.getElementById('ac-city').value,
+    address: document.getElementById('ac-address').value,
+    phone: document.getElementById('ac-phone').value,
+    email: document.getElementById('ac-email').value,
+    courts_count: document.getElementById('ac-courts').value,
+    price_per_hour: document.getElementById('ac-price').value,
+    open_time: document.getElementById('ac-open').value,
+    close_time: document.getElementById('ac-close').value,
+    description: document.getElementById('ac-desc').value,
+    website: document.getElementById('ac-website').value,
+  };
+  try {
+    const data = await api('/clubs', { method: 'POST', body });
+    showAlert('add-club-alert', 'success', data.message);
+    loadClubs();
+    loadCities();
+  } catch (e) {
+    showAlert('add-club-alert', 'error', e.message);
+  }
+}
+
+// ═══════════════ PARTNERS ═══════════════
+async function loadPartners() {
+  const city = document.getElementById('partner-city-filter').value;
+  const date = document.getElementById('partner-date-filter').value;
+  let qs = '';
+  if (city) qs += `city=${encodeURIComponent(city)}&`;
+  if (date) qs += `date=${encodeURIComponent(date)}&`;
+  const el = document.getElementById('partners-list');
+  try {
+    const list = await api('/partners?' + qs);
+    if (!list.length) { el.innerHTML = '<p style="color:var(--muted)">Няма активни обяви.</p>'; return; }
+    el.innerHTML = list.map(p => `
+      <div class="card" style="margin-bottom:12px;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div>
+            <strong>${esc(p.user_name)}</strong>
+            <span class="badge badge-blue" style="margin-left:6px">${levelLabel(p.user_level)}</span>
+          </div>
+          <div style="font-size:.8rem;color:var(--muted)">Рейтинг: ${Math.round(p.user_rating)}</div>
+        </div>
+        <div style="margin-top:8px;font-size:.88rem">
+          📍 ${esc(p.city)} &nbsp;•&nbsp; 📅 ${p.date} &nbsp;•&nbsp; ⏰ ${p.time_from}–${p.time_to}
+        </div>
+        ${p.level ? `<div style="font-size:.8rem;margin-top:4px">Ниво партньор: <span class="tag">${levelLabel(p.level)}</span></div>` : ''}
+        ${p.message ? `<div style="font-size:.85rem;color:var(--muted);margin-top:6px">${esc(p.message)}</div>` : ''}
+        ${currentUser && p.user_id === currentUser.id ? `<button class="btn btn-danger btn-sm" style="margin-top:8px" onclick="deletePartnerRequest('${p.id}')">Премахни</button>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+async function submitPartnerRequest() {
+  if (!currentUser) { openAuthModal('login'); return; }
+  const body = {
+    city: document.getElementById('pr-city').value,
+    date: document.getElementById('pr-date').value,
+    time_from: document.getElementById('pr-from').value,
+    time_to: document.getElementById('pr-to').value,
+    level: document.getElementById('pr-level').value,
+    message: document.getElementById('pr-message').value,
+  };
+  try {
+    const data = await api('/partners', { method: 'POST', body });
+    showAlert('partner-alert', 'success', data.message);
+    loadPartners();
+  } catch (e) {
+    showAlert('partner-alert', 'error', e.message);
+  }
+}
+
+async function deletePartnerRequest(id) {
+  try {
+    await api('/partners/' + id, { method: 'DELETE' });
+    loadPartners();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ═══════════════ RANKINGS ═══════════════
+async function loadRankings() {
+  const city = document.getElementById('rank-city').value;
+  const level = document.getElementById('rank-level').value;
+  let qs = '';
+  if (city) qs += `city=${encodeURIComponent(city)}&`;
+  if (level) qs += `level=${encodeURIComponent(level)}&`;
+  const el = document.getElementById('rankings-table');
+  try {
+    const list = await api('/rankings?' + qs);
+    if (!list.length) { el.innerHTML = '<p style="color:var(--muted)">Няма данни.</p>'; return; }
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>#</th><th>Играч</th><th>Град</th><th>Ниво</th><th>Рейтинг</th><th>П/З</th><th>Win%</th></tr>
+        </thead>
+        <tbody>
+          ${list.map((p, i) => `
+            <tr>
+              <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+              <td><strong>${esc(p.name)}</strong></td>
+              <td>${p.city ? esc(p.city) : '–'}</td>
+              <td><span class="badge badge-green">${levelLabel(p.level)}</span></td>
+              <td><strong>${Math.round(p.rating)}</strong></td>
+              <td>${p.wins}/${p.losses}</td>
+              <td>${p.win_rate}%</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+// ═══════════════ PROFILE ═══════════════
+async function loadProfile() {
+  if (!currentUser) { openAuthModal('login'); return; }
+  await fetchMe();
+  const u = currentUser;
+  document.getElementById('profile-name').textContent = u.name;
+  document.getElementById('profile-level').innerHTML = `<span class="badge badge-green">${levelLabel(u.level)}</span>`;
+  document.getElementById('profile-city').textContent = u.city || '';
+  document.getElementById('profile-rating').textContent = Math.round(u.rating);
+  document.getElementById('profile-wins').textContent = u.wins;
+  document.getElementById('profile-losses').textContent = u.losses;
+  loadMyBookings();
+}
+
+function switchProfileTab(name, el) {
+  ['bookings','matches','record'].forEach(t => {
+    document.getElementById('profile-tab-' + t).style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (name === 'bookings') loadMyBookings();
+}
+
+async function loadMyBookings() {
+  const el = document.getElementById('my-bookings');
+  try {
+    const list = await api('/bookings');
+    if (!list.length) { el.innerHTML = '<p style="color:var(--muted)">Нямаш резервации.</p>'; return; }
+    el.innerHTML = list.map(b => `
+      <div class="card" style="margin-bottom:12px;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:6px">
+          <div>
+            <strong>${esc(b.club_name)}</strong> – ${esc(b.court_name)}
+            <div style="font-size:.85rem;color:var(--muted);margin-top:4px">📅 ${b.date} &nbsp;⏰ ${b.start_time}–${b.end_time}</div>
+            <div style="font-size:.85rem;margin-top:4px">💰 ${b.total_price} лв</div>
+          </div>
+          <div>
+            <span class="badge ${b.status === 'confirmed' ? 'badge-green' : 'badge-red'}">${b.status === 'confirmed' ? 'Потвърдена' : 'Отказана'}</span>
+            ${b.status === 'confirmed' ? `<br><button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="cancelBooking('${b.id}')">Откажи</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p style="color:#c62828">${e.message}</p>`;
+  }
+}
+
+async function cancelBooking(id) {
+  if (!confirm('Сигурен ли си, че искаш да откажеш тази резервация?')) return;
+  try {
+    await api('/bookings/' + id, { method: 'DELETE' });
+    loadMyBookings();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function submitMatch() {
+  const body = {
+    player2_id: document.getElementById('m-player2').value,
+    date: document.getElementById('m-date').value,
+    score: document.getElementById('m-score').value,
+    winner_team: parseInt(document.getElementById('m-winner').value),
+  };
+  try {
+    const data = await api('/matches', { method: 'POST', body });
+    showAlert('match-alert', 'success', data.message);
+    await fetchMe();
+    loadProfile();
+  } catch (e) {
+    showAlert('match-alert', 'error', e.message);
+  }
+}
+
+function showEditProfile() {
+  // simple inline edit — could be extended to a modal
+  alert('Редактирането на профила идва скоро!');
+}
+
+// ═══════════════ HELPERS ═══════════════
+function showAlert(containerId, type, msg) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}">${esc(msg)}</div>`;
+  setTimeout(() => { if (el) el.innerHTML = ''; }, 5000);
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function levelLabel(level) {
+  const map = { beginner: 'Начинаещ', intermediate: 'Средно', advanced: 'Напреднал', pro: 'Про' };
+  return map[level] || level || '–';
+}
+</script>
+</body>
+</html>
