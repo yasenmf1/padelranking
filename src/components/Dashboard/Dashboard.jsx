@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { getLeagueIcon, getLeagueColor, getLeagueProgress, getLeague } from '../../lib/elo'
+import ContactForm from '../Contact/ContactForm'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -232,6 +233,9 @@ export default function Dashboard() {
           <span>+</span> Запиши мач
         </Link>
       </div>
+
+      {/* Contact */}
+      <ContactForm />
     </div>
   )
 }

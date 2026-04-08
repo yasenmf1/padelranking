@@ -3,49 +3,54 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { calculateElo, getLeague } from '../../lib/elo'
 
-const TABS = ['Мачове', 'Играчи', 'Статистика']
+const TABS = ['Играчи', 'Мачове', 'Съобщения']
 
-const SA_LABELS = [
-  'Въздушна топка от лоб',
-  'Ниска топка при краката',
-  'Контра-лоб над вас',
-  'Излизане от защита',
-  'Bandeja vs Smash',
-  'Smash X3/X4',
-  'Позиция при воле',
-  'Chiquita',
-  'Втори сервис',
-  'Ретур в стъклото',
-]
-
-function getSAColor(score) {
-  if (score >= 70) return '#CCFF00'
-  if (score >= 40) return '#f59e0b'
-  return '#9ca3af'
+const STATUS_LABEL = {
+  pending: { text: 'Изчакващ', cls: 'bg-yellow-500/20 text-yellow-400' },
+  approved: { text: 'Одобрен', cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
+  rejected: { text: 'Отхвърлен', cls: 'bg-red-500/20 text-red-400' },
 }
 
 export default function AdminPanel() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState('Мачове')
-  const [pendingMatches, setPendingMatches] = useState([])
+  const [activeTab, setActiveTab] = useState('Играчи')
   const [players, setPlayers] = useState([])
-  const [stats, setStats] = useState(null)
+  const [matches, setMatches] = useState([])
+  const [messages, setMessages] = useState([])
+  const [matchFilter, setMatchFilter] = useState('pending')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState({})
-  const [expandedPlayer, setExpandedPlayer] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    if (activeTab === 'Мачове') fetchPendingMatches()
-    else if (activeTab === 'Играчи') fetchPlayers()
-    else if (activeTab === 'Статистика') fetchStats()
+    if (activeTab === 'Играчи') fetchPlayers()
+    else if (activeTab === 'Мачове') fetchMatches()
+    else if (activeTab === 'Съобщения') fetchMessages()
   }, [activeTab])
 
-  async function fetchPendingMatches() {
+  useEffect(() => {
+    if (activeTab === 'Мачове') fetchMatches()
+  }, [matchFilter])
+
+  // ── Fetch ──────────────────────────────────────────────
+
+  async function fetchPlayers() {
     setLoading(true)
     try {
       const { data } = await supabase
+        .from('profiles')
+        .select('*, clubs(name, city)')
+        .order('created_at', { ascending: false })
+      if (data) setPlayers(data)
+    } catch { setError('Грешка при зареждане.') }
+    finally { setLoading(false) }
+  }
+
+  async function fetchMatches() {
+    setLoading(true)
+    try {
+      let q = supabase
         .from('matches')
         .select(`
           *,
@@ -55,187 +60,127 @@ export default function AdminPanel() {
           player4:profiles!matches_player4_id_fkey(id, full_name, username, rating, approved_matches),
           clubs(name, city)
         `)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: true })
-      if (data) setPendingMatches(data)
-    } catch (err) {
-      setError('Грешка при зареждане.')
-    } finally {
-      setLoading(false)
-    }
+        .order('created_at', { ascending: false })
+      if (matchFilter !== 'all') q = q.eq('status', matchFilter)
+      const { data } = await q
+      if (data) setMatches(data)
+    } catch { setError('Грешка при зареждане.') }
+    finally { setLoading(false) }
   }
 
-  async function fetchPlayers() {
+  async function fetchMessages() {
     setLoading(true)
     try {
       const { data } = await supabase
-        .from('profiles')
-        .select('*, clubs(name, city)')
-        .order('rating', { ascending: false })
-      if (data) setPlayers(data)
-    } catch (err) {
-      setError('Грешка при зареждане.')
-    } finally {
-      setLoading(false)
-    }
+        .from('contact_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (data) setMessages(data)
+    } catch { setError('Грешка при зареждане.') }
+    finally { setLoading(false) }
   }
 
-  async function fetchStats() {
-    setLoading(true)
+  // ── Player actions ─────────────────────────────────────
+
+  async function deletePlayer(player) {
+    if (!window.confirm(`Изтрий играч "${player.full_name}" (@${player.username})?\n\nТОВА ДЕЙСТВИЕ Е НЕОБРАТИМО.`)) return
+    setActionLoading(p => ({ ...p, [player.id]: 'deleting' }))
     try {
-      const [{ count: totalPlayers }, { count: totalMatches }, { data: matchesByLeague }] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('matches').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-        supabase.from('profiles').select('league')
-      ])
-
-      const leagueCounts = {}
-      if (matchesByLeague) {
-        for (const p of matchesByLeague) {
-          leagueCounts[p.league] = (leagueCounts[p.league] || 0) + 1
-        }
-      }
-
-      const { count: rankedCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_ranked', true)
-      const { count: pendingCount } = await supabase.from('matches').select('*', { count: 'exact', head: true }).eq('status', 'pending')
-
-      setStats({ totalPlayers, totalMatches, leagueCounts, rankedCount, pendingCount })
-    } catch (err) {
-      setError('Грешка при зареждане.')
-    } finally {
-      setLoading(false)
-    }
+      const { error } = await supabase.from('profiles').delete().eq('id', player.id)
+      if (error) throw error
+      setPlayers(prev => prev.filter(p => p.id !== player.id))
+      showSuccess('Играчът е изтрит.')
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [player.id]: null })) }
   }
+
+  // ── Match actions ──────────────────────────────────────
 
   async function approveMatch(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
     setError('')
     try {
       const setsData = match.sets_data || []
-      let team1Wins = 0, team2Wins = 0
+      let t1Wins = 0, t2Wins = 0
       for (const s of setsData) {
-        if (s.p1 > s.p2) team1Wins++
-        else if (s.p2 > s.p1) team2Wins++
+        if (s.p1 > s.p2) t1Wins++
+        else if (s.p2 > s.p1) t2Wins++
+      }
+      const t1Avg = Math.round(((match.player1?.rating || 500) + (match.player2?.rating || 500)) / 2)
+      const t2Avg = Math.round(((match.player3?.rating || 500) + (match.player4?.rating || 500)) / 2)
+      const { newRatingA: newT1Avg, newRatingB: newT2Avg } = calculateElo(t1Avg, t2Avg, t1Wins, t2Wins, match.match_type)
+      const d1 = newT1Avg - t1Avg, d2 = newT2Avg - t2Avg
+
+      const newR = {
+        p1: Math.max(0, (match.player1?.rating || 500) + d1),
+        p2: Math.max(0, (match.player2?.rating || 500) + d1),
+        p3: Math.max(0, (match.player3?.rating || 500) + d2),
+        p4: Math.max(0, (match.player4?.rating || 500) + d2),
       }
 
-      // Doubles: ELO calculated using team averages, delta applied to each player
-      const team1Avg = Math.round(((match.player1?.rating || 500) + (match.player2?.rating || 500)) / 2)
-      const team2Avg = Math.round(((match.player3?.rating || 500) + (match.player4?.rating || 500)) / 2)
+      const { error: mErr } = await supabase.from('matches').update({
+        status: 'approved',
+        player1_rating_after: newR.p1, player2_rating_after: newR.p2,
+        player3_rating_after: newR.p3, player4_rating_after: newR.p4,
+        reviewed_by: profile.id
+      }).eq('id', match.id)
+      if (mErr) throw mErr
 
-      const { newRatingA: newTeam1Avg, newRatingB: newTeam2Avg } = calculateElo(
-        team1Avg, team2Avg, team1Wins, team2Wins, match.match_type
-      )
-
-      const team1Delta = newTeam1Avg - team1Avg
-      const team2Delta = newTeam2Avg - team2Avg
-
-      const newP1Rating = Math.max(0, (match.player1?.rating || 500) + team1Delta)
-      const newP2Rating = Math.max(0, (match.player2?.rating || 500) + team1Delta)
-      const newP3Rating = Math.max(0, (match.player3?.rating || 500) + team2Delta)
-      const newP4Rating = Math.max(0, (match.player4?.rating || 500) + team2Delta)
-
-      const newP1League = getLeague(newP1Rating)
-      const newP2League = getLeague(newP2Rating)
-      const newP3League = getLeague(newP3Rating)
-      const newP4League = getLeague(newP4Rating)
-
-      const newP1Matches = (match.player1?.approved_matches || 0) + 1
-      const newP2Matches = (match.player2?.approved_matches || 0) + 1
-      const newP3Matches = (match.player3?.approved_matches || 0) + 1
-      const newP4Matches = (match.player4?.approved_matches || 0) + 1
-
-      // Update match record
-      const { error: matchError } = await supabase
-        .from('matches')
-        .update({
-          status: 'approved',
-          player1_rating_after: newP1Rating,
-          player2_rating_after: newP2Rating,
-          player3_rating_after: newP3Rating,
-          player4_rating_after: newP4Rating,
-          reviewed_by: profile.id
-        })
-        .eq('id', match.id)
-      if (matchError) throw matchError
-
-      // Update all 4 player profiles
       const updates = [
-        { id: match.player1_id, rating: newP1Rating, league: newP1League, approved_matches: newP1Matches },
-        { id: match.player2_id, rating: newP2Rating, league: newP2League, approved_matches: newP2Matches },
-        { id: match.player3_id, rating: newP3Rating, league: newP3League, approved_matches: newP3Matches },
-        { id: match.player4_id, rating: newP4Rating, league: newP4League, approved_matches: newP4Matches },
+        { id: match.player1_id, r: newR.p1 },
+        { id: match.player2_id, r: newR.p2 },
+        { id: match.player3_id, r: newR.p3 },
+        { id: match.player4_id, r: newR.p4 },
       ].filter(u => u.id)
 
-      for (const u of updates) {
-        const { error: pErr } = await supabase
-          .from('profiles')
-          .update({
-            rating: u.rating,
-            league: u.league,
-            approved_matches: u.approved_matches,
-            is_ranked: u.approved_matches >= 5,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', u.id)
-        if (pErr) throw pErr
+      const playerData = [match.player1, match.player2, match.player3, match.player4]
+      for (let i = 0; i < updates.length; i++) {
+        const prev = playerData[i]
+        const newMatches = (prev?.approved_matches || 0) + 1
+        await supabase.from('profiles').update({
+          rating: updates[i].r, league: getLeague(updates[i].r),
+          approved_matches: newMatches, is_ranked: newMatches >= 5,
+          updated_at: new Date().toISOString()
+        }).eq('id', updates[i].id)
       }
 
-      // Save rankings history for all 4 players
-      const historyRows = [
-        match.player1_id && { player_id: match.player1_id, rating: newP1Rating, league: newP1League, match_id: match.id },
-        match.player2_id && { player_id: match.player2_id, rating: newP2Rating, league: newP2League, match_id: match.id },
-        match.player3_id && { player_id: match.player3_id, rating: newP3Rating, league: newP3League, match_id: match.id },
-        match.player4_id && { player_id: match.player4_id, rating: newP4Rating, league: newP4League, match_id: match.id },
-      ].filter(Boolean)
-      await supabase.from('rankings_history').insert(historyRows)
+      await supabase.from('rankings_history').insert(updates.filter(u => u.id).map(u => ({
+        player_id: u.id, rating: u.r, league: getLeague(u.r), match_id: match.id
+      })))
 
-      setSuccess(
-        `Мачът е одобрен! Отбор 1: ${team1Avg} → ${newTeam1Avg} (${team1Delta >= 0 ? '+' : ''}${team1Delta}) | Отбор 2: ${team2Avg} → ${newTeam2Avg} (${team2Delta >= 0 ? '+' : ''}${team2Delta})`
-      )
-      setTimeout(() => setSuccess(''), 5000)
-      await fetchPendingMatches()
-    } catch (err) {
-      setError(err.message || 'Грешка при одобряване.')
-    } finally {
-      setActionLoading(p => ({ ...p, [match.id]: null }))
-    }
+      showSuccess(`Одобрено! Отбор 1: ${t1Avg}→${newT1Avg} (${d1 >= 0 ? '+' : ''}${d1}) | Отбор 2: ${t2Avg}→${newT2Avg} (${d2 >= 0 ? '+' : ''}${d2})`)
+      fetchMatches()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
   }
 
-  async function rejectMatch(match, note = '') {
+  async function rejectMatch(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'rejecting' }))
-    setError('')
     try {
-      const { error } = await supabase
-        .from('matches')
-        .update({ status: 'rejected', reviewed_by: profile.id, admin_note: note || null })
-        .eq('id', match.id)
+      const { error } = await supabase.from('matches').update({
+        status: 'rejected', reviewed_by: profile.id
+      }).eq('id', match.id)
       if (error) throw error
-      setSuccess('Мачът е отхвърлен.')
-      setTimeout(() => setSuccess(''), 3000)
-      await fetchPendingMatches()
-    } catch (err) {
-      setError(err.message || 'Грешка при отхвърляне.')
-    } finally {
-      setActionLoading(p => ({ ...p, [match.id]: null }))
-    }
+      showSuccess('Мачът е отхвърлен.')
+      fetchMatches()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
   }
 
-  async function toggleAdmin(player) {
+  // ── Message actions ────────────────────────────────────
+
+  async function markRead(msg) {
     try {
-      await supabase.from('profiles').update({ is_admin: !player.is_admin }).eq('id', player.id)
-      setPlayers(prev => prev.map(p => p.id === player.id ? { ...p, is_admin: !p.is_admin } : p))
-    } catch (err) {
-      setError(err.message)
-    }
+      await supabase.from('contact_messages').update({ is_read: true }).eq('id', msg.id)
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
+    } catch (err) { setError(err.message) }
   }
 
-  async function toggleRanked(player) {
-    try {
-      await supabase.from('profiles').update({ is_ranked: !player.is_ranked }).eq('id', player.id)
-      setPlayers(prev => prev.map(p => p.id === player.id ? { ...p, is_ranked: !p.is_ranked } : p))
-    } catch (err) {
-      setError(err.message)
-    }
+  // ── Helpers ────────────────────────────────────────────
+
+  function showSuccess(msg) {
+    setSuccess(msg)
+    setTimeout(() => setSuccess(''), 5000)
   }
 
   function formatDate(str) {
@@ -247,6 +192,15 @@ export default function AdminPanel() {
     return setsData.map(s => `${s.p1}-${s.p2}`).join(', ')
   }
 
+  const unreadCount = messages.filter(m => !m.is_read).length
+
+  const Spinner = () => (
+    <div className="py-10 text-center text-gray-500">
+      <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+      Зареждане...
+    </div>
+  )
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
       <div className="flex items-center gap-3">
@@ -254,12 +208,8 @@ export default function AdminPanel() {
         <span className="league-badge bg-red-500/20 text-red-400 border border-red-500/30">Admin</span>
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>
-      )}
-      {success && (
-        <div className="p-3 bg-[#CCFF00]/10 border border-[#CCFF00]/30 rounded-lg text-[#CCFF00] text-sm">{success}</div>
-      )}
+      {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
+      {success && <div className="p-3 bg-[#CCFF00]/10 border border-[#CCFF00]/30 rounded-lg text-[#CCFF00] text-sm">{success}</div>}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-[#2a2a2a]">
@@ -267,235 +217,71 @@ export default function AdminPanel() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
-                ? 'border-[#CCFF00] text-[#CCFF00]'
-                : 'border-transparent text-gray-400 hover:text-white'
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === tab ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
             {tab}
+            {tab === 'Съобщения' && unreadCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                {unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* --- Tab: Pending Matches --- */}
-      {activeTab === 'Мачове' && (
-        <div className="space-y-4">
-          <p className="text-gray-400 text-sm">{pendingMatches.length} мача чакат одобрение</p>
-
-          {loading ? (
-            <div className="py-10 text-center text-gray-500">
-              <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              Зареждане...
-            </div>
-          ) : pendingMatches.length === 0 ? (
-            <div className="card text-center py-10">
-              <div className="text-4xl mb-2">✅</div>
-              <p className="text-white font-medium">Няма мачове за одобрение</p>
-              <p className="text-gray-400 text-sm mt-1">Всички мачове са прегледани</p>
-            </div>
-          ) : (
-            pendingMatches.map(match => {
-              const setsData = match.sets_data || []
-              let p1Wins = 0, p2Wins = 0
-              for (const s of setsData) {
-                if (s.p1 > s.p2) p1Wins++
-                else if (s.p2 > s.p1) p2Wins++
-              }
-              const winnerPlayer = match.winner_id === match.player1_id ? match.player1 : match.player2
-
-              return (
-                <div key={match.id} className="card border-yellow-500/20 bg-yellow-500/5">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs text-gray-500">#{match.id}</span>
-                        <span className="text-xs text-yellow-400 bg-yellow-500/20 px-2 py-0.5 rounded-full">Изчакващ</span>
-                        <span className="text-xs text-gray-500">{match.match_type?.toUpperCase()}</span>
-                      </div>
-
-                      {/* Teams */}
-                      <div className="flex items-center gap-3 mb-3">
-                        {/* Team 1 */}
-                        <div className="text-left flex-1">
-                          <p className="text-xs text-gray-500 mb-0.5">Отбор 1</p>
-                          <p className="text-white font-semibold text-sm leading-tight">{match.player1?.full_name}</p>
-                          <p className="text-white font-semibold text-sm leading-tight">{match.player2?.full_name}</p>
-                          <p className="text-[#CCFF00] text-xs mt-0.5">
-                            ⌀ {Math.round(((match.player1?.rating || 0) + (match.player2?.rating || 0)) / 2)} ELO
-                          </p>
-                        </div>
-                        {/* Score */}
-                        <div className="text-center flex-shrink-0">
-                          <p className="text-gray-400 font-mono text-lg font-bold">{p1Wins} - {p2Wins}</p>
-                          <p className="text-gray-600 text-xs">{formatSets(setsData)}</p>
-                        </div>
-                        {/* Team 2 */}
-                        <div className="text-right flex-1">
-                          <p className="text-xs text-gray-500 mb-0.5">Отбор 2</p>
-                          <p className="text-white font-semibold text-sm leading-tight">{match.player3?.full_name}</p>
-                          <p className="text-white font-semibold text-sm leading-tight">{match.player4?.full_name}</p>
-                          <p className="text-[#CCFF00] text-xs mt-0.5">
-                            ⌀ {Math.round(((match.player3?.rating || 0) + (match.player4?.rating || 0)) / 2)} ELO
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-gray-500 space-y-0.5">
-                        <p>Победител по данни: <span className="text-white">{winnerPlayer?.full_name}</span></p>
-                        {match.clubs && <p>Клуб: {match.clubs.name}</p>}
-                        <p>Изиграно: {formatDate(match.played_at)}</p>
-                        <p>Записано: {formatDate(match.created_at)}</p>
-                        {match.admin_note && <p>Бележка: <span className="text-gray-300">{match.admin_note}</span></p>}
-                      </div>
-                    </div>
-
-                    <div className="flex sm:flex-col gap-2">
-                      <button
-                        onClick={() => approveMatch(match)}
-                        disabled={!!actionLoading[match.id]}
-                        className="flex-1 sm:flex-none px-4 py-2 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-                      >
-                        {actionLoading[match.id] === 'approving' ? (
-                          <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                        ) : '✓ Одобри'}
-                      </button>
-                      <button
-                        onClick={() => rejectMatch(match)}
-                        disabled={!!actionLoading[match.id]}
-                        className="flex-1 sm:flex-none px-4 py-2 bg-red-500/20 text-red-400 text-sm font-semibold rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50 border border-red-500/30 flex items-center justify-center gap-1.5"
-                      >
-                        {actionLoading[match.id] === 'rejecting' ? (
-                          <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
-                        ) : '✗ Отхвърли'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
-
-      {/* --- Tab: Players --- */}
+      {/* ── ИГРАЧИ ── */}
       {activeTab === 'Играчи' && (
-        <div className="space-y-3">
-          <p className="text-gray-400 text-sm">{players.length} регистрирани играчи</p>
-
-          {loading ? (
-            <div className="py-10 text-center text-gray-500">
-              <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              Зареждане...
-            </div>
-          ) : (
+        <div>
+          <p className="text-gray-400 text-sm mb-4">{players.length} регистрирани играчи</p>
+          {loading ? <Spinner /> : (
             <div className="overflow-x-auto card p-0">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2a2a2a]">
                     <th className="text-left text-xs text-gray-500 uppercase px-4 py-3">Играч</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Рейтинг</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Лига</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">Имейл</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">ELO</th>
                     <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Мачове</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Тактика</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Ranked</th>
-                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Admin</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Регистрация</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
                   {players.map(player => (
-                    <>
-                      <tr
-                        key={player.id}
-                        className="border-b border-[#1a1a1a] hover:bg-[#222] transition-colors cursor-pointer"
-                        onClick={() => setExpandedPlayer(expandedPlayer === player.id ? null : player.id)}
-                      >
-                        <td className="px-4 py-3">
-                          <p className="text-white font-medium">{player.full_name}</p>
-                          <p className="text-gray-500 text-xs">@{player.username} · {player.email}</p>
-                          {player.clubs && <p className="text-gray-600 text-xs">{player.clubs.name}</p>}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-[#CCFF00] font-bold">{player.rating}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-gray-300">{player.league}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-gray-400">{player.approved_matches || 0}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {player.self_assessment_score != null ? (
-                            <span
-                              className="font-bold text-sm"
-                              style={{ color: getSAColor(player.self_assessment_score) }}
-                            >
-                              {player.self_assessment_score}%
-                            </span>
-                          ) : (
-                            <span className="text-gray-600 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => toggleRanked(player)}
-                            className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                              player.is_ranked
-                                ? 'bg-[#CCFF00]/20 text-[#CCFF00] hover:bg-red-500/20 hover:text-red-400'
-                                : 'bg-[#2a2a2a] text-gray-500 hover:bg-[#CCFF00]/20 hover:text-[#CCFF00]'
-                            }`}
-                          >
-                            {player.is_ranked ? '✓ Да' : '✗ Не'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => toggleAdmin(player)}
-                            disabled={player.id === profile?.id}
-                            className={`px-2 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
-                              player.is_admin
-                                ? 'bg-red-500/20 text-red-400 hover:bg-[#2a2a2a] hover:text-gray-400'
-                                : 'bg-[#2a2a2a] text-gray-500 hover:bg-red-500/20 hover:text-red-400'
-                            }`}
-                          >
-                            {player.is_admin ? '✓ Admin' : '✗ Не'}
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* Expandable self-assessment details */}
-                      {expandedPlayer === player.id && (
-                        <tr key={`${player.id}-sa`} className="border-b border-[#1a1a1a] bg-[#0f0f0f]">
-                          <td colSpan={7} className="px-4 py-4">
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                              Тактическа самооценка
-                            </p>
-                            {player.self_assessment_data ? (
-                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                {SA_LABELS.map((label, idx) => {
-                                  const key = `q${idx + 1}`
-                                  const answer = player.self_assessment_data[key]
-                                  const color = answer === 'В' ? '#CCFF00' : answer === 'Б' ? '#f59e0b' : '#9ca3af'
-                                  return (
-                                    <div key={key} className="bg-[#1a1a1a] rounded-lg p-2.5">
-                                      <p className="text-gray-600 text-xs mb-1 leading-tight">{idx + 1}. {label}</p>
-                                      <span
-                                        className="text-lg font-black"
-                                        style={{ color }}
-                                      >
-                                        {answer || '—'}
-                                      </span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            ) : (
-                              <p className="text-gray-600 text-sm">Не е попълнена самооценка.</p>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </>
+                    <tr key={player.id} className="border-b border-[#1a1a1a] hover:bg-[#181818] transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-white font-medium text-sm">{player.full_name}</p>
+                        <p className="text-gray-500 text-xs">@{player.username}</p>
+                        {player.is_admin && <span className="text-xs text-red-400">Admin</span>}
+                        {player.is_ranked && <span className="text-xs text-[#CCFF00] ml-1">Ranked</span>}
+                      </td>
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        <span className="text-gray-400 text-xs">{player.email}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-[#CCFF00] font-bold">{player.rating}</span>
+                        <p className="text-gray-600 text-xs">{player.league}</p>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-400">
+                        {player.approved_matches || 0}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">
+                        {formatDate(player.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => deletePlayer(player)}
+                          disabled={!!actionLoading[player.id] || player.email === 'office@motamo.bg'}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          {actionLoading[player.id] === 'deleting' ? (
+                            <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                          ) : 'Изтрий'}
+                        </button>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -504,57 +290,162 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* --- Tab: Stats --- */}
-      {activeTab === 'Статистика' && (
-        <div className="space-y-5">
-          {loading ? (
-            <div className="py-10 text-center text-gray-500">
-              <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              Зареждане...
-            </div>
-          ) : stats ? (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { label: 'Общо играчи', value: stats.totalPlayers, icon: '👥' },
-                  { label: 'Ranked играчи', value: stats.rankedCount, icon: '🏆' },
-                  { label: 'Одобрени мачове', value: stats.totalMatches, icon: '✅' },
-                  { label: 'Чакащи мачове', value: stats.pendingCount, icon: '⏳' },
-                ].map(s => (
-                  <div key={s.label} className="card text-center">
-                    <div className="text-3xl mb-1">{s.icon}</div>
-                    <div className="text-3xl font-black text-[#CCFF00]">{s.value || 0}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
-                  </div>
-                ))}
-              </div>
+      {/* ── МАЧОВЕ ── */}
+      {activeTab === 'Мачове' && (
+        <div className="space-y-4">
+          {/* Filter tabs */}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { key: 'pending', label: 'Изчакващи' },
+              { key: 'approved', label: 'Одобрени' },
+              { key: 'rejected', label: 'Отхвърлени' },
+              { key: 'all', label: 'Всички' },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setMatchFilter(f.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  matchFilter === f.key
+                    ? 'bg-[#CCFF00] text-black'
+                    : 'bg-[#1e1e1e] text-gray-400 hover:text-white'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
-              <div className="card">
-                <h3 className="text-base font-bold text-white mb-4">Играчи по лига</h3>
-                {['Начинаещи', 'Бронз', 'Сребър', 'Злато'].map(league => {
-                  const count = stats.leagueCounts?.[league] || 0
-                  const total = stats.totalPlayers || 1
-                  const pct = Math.round((count / total) * 100)
-                  const colors = { 'Начинаещи': '#6b7280', 'Бронз': '#cd7f32', 'Сребър': '#c0c0c0', 'Злато': '#ffd700' }
-                  return (
-                    <div key={league} className="mb-3">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-300">{league}</span>
-                        <span className="text-gray-400">{count} играчи ({pct}%)</span>
-                      </div>
-                      <div className="h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-700"
-                          style={{ width: `${pct}%`, backgroundColor: colors[league] }}
-                        ></div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
+          <p className="text-gray-400 text-sm">{matches.length} мача</p>
+
+          {loading ? <Spinner /> : matches.length === 0 ? (
+            <div className="card text-center py-10">
+              <div className="text-4xl mb-2">📭</div>
+              <p className="text-white font-medium">Няма мачове в тази категория</p>
+            </div>
           ) : (
-            <p className="text-gray-500">Няма данни</p>
+            <div className="space-y-3">
+              {matches.map(match => {
+                const setsData = match.sets_data || []
+                let t1W = 0, t2W = 0
+                for (const s of setsData) {
+                  if (s.p1 > s.p2) t1W++
+                  else if (s.p2 > s.p1) t2W++
+                }
+                const status = STATUS_LABEL[match.status] || STATUS_LABEL.pending
+                const isPending = match.status === 'pending'
+
+                return (
+                  <div key={match.id} className={`card ${isPending ? 'border-yellow-500/20 bg-yellow-500/5' : ''}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          <span className="text-xs text-gray-500">#{match.id}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.cls}`}>
+                            {status.text}
+                          </span>
+                          <span className="text-xs text-gray-500">{match.match_type?.toUpperCase()}</span>
+                          <span className="text-xs text-gray-600">{formatDate(match.played_at)}</span>
+                          {match.clubs && <span className="text-xs text-gray-600">{match.clubs.name}</span>}
+                        </div>
+
+                        {/* Teams */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500 mb-0.5">Отбор 1</p>
+                            <p className="text-white text-sm font-medium leading-tight">{match.player1?.full_name}</p>
+                            <p className="text-white text-sm font-medium leading-tight">{match.player2?.full_name}</p>
+                          </div>
+                          <div className="text-center flex-shrink-0">
+                            <p className="text-[#CCFF00] font-mono font-black text-xl">{t1W} – {t2W}</p>
+                            <p className="text-gray-600 text-xs">{formatSets(setsData)}</p>
+                          </div>
+                          <div className="flex-1 text-right">
+                            <p className="text-xs text-gray-500 mb-0.5">Отбор 2</p>
+                            <p className="text-white text-sm font-medium leading-tight">{match.player3?.full_name}</p>
+                            <p className="text-white text-sm font-medium leading-tight">{match.player4?.full_name}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isPending && (
+                        <div className="flex sm:flex-col gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => approveMatch(match)}
+                            disabled={!!actionLoading[match.id]}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                          >
+                            {actionLoading[match.id] === 'approving'
+                              ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                              : '✓ Одобри'}
+                          </button>
+                          <button
+                            onClick={() => rejectMatch(match)}
+                            disabled={!!actionLoading[match.id]}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-red-500/20 text-red-400 text-sm font-semibold rounded-lg hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                          >
+                            {actionLoading[match.id] === 'rejecting'
+                              ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                              : '✗ Отхвърли'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── СЪОБЩЕНИЯ ── */}
+      {activeTab === 'Съобщения' && (
+        <div className="space-y-3">
+          <p className="text-gray-400 text-sm">
+            {messages.length} съобщения
+            {unreadCount > 0 && <span className="text-red-400 ml-2">· {unreadCount} непрочетени</span>}
+          </p>
+
+          {loading ? <Spinner /> : messages.length === 0 ? (
+            <div className="card text-center py-10">
+              <div className="text-4xl mb-2">📭</div>
+              <p className="text-white font-medium">Няма съобщения</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map(msg => (
+                <div
+                  key={msg.id}
+                  className={`card transition-colors ${
+                    !msg.is_read
+                      ? 'border-[#CCFF00]/30 bg-[#CCFF00]/5'
+                      : 'opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-white font-semibold text-sm">{msg.name}</span>
+                        <span className="text-gray-500 text-xs">{msg.email}</span>
+                        {!msg.is_read && (
+                          <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-medium">Ново</span>
+                        )}
+                      </div>
+                      <p className="text-gray-300 text-sm leading-relaxed">{msg.message}</p>
+                      <p className="text-gray-600 text-xs mt-2">{formatDate(msg.created_at)}</p>
+                    </div>
+                    {!msg.is_read && (
+                      <button
+                        onClick={() => markRead(msg)}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] text-gray-400 hover:text-white border border-[#2a2a2a] hover:border-[#CCFF00]/30 transition-colors"
+                      >
+                        ✓ Прочетено
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

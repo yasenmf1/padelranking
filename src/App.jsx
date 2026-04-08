@@ -10,6 +10,7 @@ import Ladder from './components/Ladder/Ladder'
 import MatchesPage from './components/Matches/MatchesPage'
 import Profile from './components/Profile/Profile'
 import AdminPanel from './components/Admin/AdminPanel'
+import SplashScreen from './components/Onboarding/SplashScreen'
 
 const Spinner = () => (
   <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -44,7 +45,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/questionnaire" replace />
   }
 
-  if (adminOnly && !profile.is_admin) {
+  if (adminOnly && profile.email !== 'office@motamo.bg') {
     return <Navigate to="/" replace />
   }
 
@@ -85,6 +86,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
+      <SplashScreen />
       {showNavbar && <Navbar />}
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
