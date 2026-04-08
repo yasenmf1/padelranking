@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function Login() {
   const { login } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from?.pathname || '/'
@@ -21,7 +23,7 @@ export default function Login() {
       await login(email, password)
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err.message || 'Грешка при вход. Проверете имейла и паролата.')
+      setError(err.message || t('login.error'))
     } finally {
       setLoading(false)
     }
@@ -30,15 +32,14 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🎾</div>
           <h1 className="text-3xl font-bold text-[#CCFF00]">Padel Ranking</h1>
-          <p className="text-gray-400 mt-1">Национална класация</p>
+          <p className="text-gray-400 mt-1">{t('login.subtitle')}</p>
         </div>
 
         <div className="card">
-          <h2 className="text-xl font-bold text-white mb-6">Влезте в акаунта си</h2>
+          <h2 className="text-xl font-bold text-white mb-6">{t('login.title')}</h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
@@ -48,7 +49,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Имейл</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('login.email')}</label>
               <input
                 type="email"
                 value={email}
@@ -61,7 +62,7 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Парола</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('login.password')}</label>
               <input
                 type="password"
                 value={password}
@@ -81,16 +82,16 @@ export default function Login() {
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                  Влизане...
+                  {t('login.loggingIn')}
                 </>
-              ) : 'Вход'}
+              ) : t('login.loginBtn')}
             </button>
           </form>
 
           <p className="mt-5 text-center text-gray-500 text-sm">
-            Нямате акаунт?{' '}
+            {t('login.noAccount')}{' '}
             <Link to="/register" className="text-[#CCFF00] hover:underline font-medium">
-              Регистрирайте се
+              {t('login.registerLink')}
             </Link>
           </p>
         </div>

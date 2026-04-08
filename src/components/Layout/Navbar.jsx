@@ -1,20 +1,22 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
+
+const BG_PADEL_TOUR_URL = 'https://bgpadeltour.com/bg'
 
 export default function Navbar() {
   const { profile, logout } = useAuth()
+  const { lang, setLang, t } = useLanguage()
   const location = useLocation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const navLinks = [
-    { to: '/', label: 'Начало' },
-    { to: '/ladder', label: 'Класация' },
-    { to: '/matches', label: 'Мачове' },
+    { to: '/', label: t('nav.home') },
+    { to: '/ladder', label: t('nav.ladder') },
+    { to: '/matches', label: t('nav.matches') },
   ]
-
-  const BG_PADEL_TOUR_URL = 'https://bgpadeltour.com/bg'
 
   async function handleLogout() {
     try {
@@ -28,6 +30,10 @@ export default function Navbar() {
   function getInitials(name) {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  function toggleLang() {
+    setLang(lang === 'bg' ? 'en' : 'bg')
   }
 
   return (
@@ -64,13 +70,14 @@ export default function Navbar() {
                     : 'text-red-400 hover:text-red-300 hover:bg-[#1e1e1e]'
                 }`}
               >
-                Admin
+                {t('nav.admin')}
               </Link>
             )}
           </div>
 
-          {/* User section desktop */}
+          {/* Right section — desktop */}
           <div className="hidden md:flex items-center gap-3">
+            {/* BG Padel Tour */}
             <a
               href={BG_PADEL_TOUR_URL}
               target="_blank"
@@ -78,8 +85,19 @@ export default function Navbar() {
               className="px-3 py-2 rounded-lg text-sm font-medium text-[#CCFF00] bg-[#CCFF00]/10 hover:bg-[#CCFF00]/20 transition-colors flex items-center gap-1.5"
               title="BG Padel Tour — Официални турнири"
             >
-              🏆 <span className="hidden lg:inline">Турнири</span>
+              🏆 <span className="hidden lg:inline">{t('nav.tournaments')}</span>
             </a>
+
+            {/* Language switcher */}
+            <button
+              onClick={toggleLang}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#2a2a2a] text-gray-400 hover:text-white hover:border-[#CCFF00]/40 transition-colors"
+              title={lang === 'bg' ? 'Switch to English' : 'Превключи на Български'}
+            >
+              {t('nav.langSwitch')}
+            </button>
+
+            {/* Profile */}
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="w-8 h-8 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
                 {getInitials(profile?.full_name)}
@@ -90,7 +108,7 @@ export default function Navbar() {
               onClick={handleLogout}
               className="text-sm text-gray-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e1e1e]"
             >
-              Изход
+              {t('nav.logout')}
             </button>
           </div>
 
@@ -148,7 +166,7 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
                 className="block px-3 py-2 rounded-lg font-medium text-sm text-red-400 hover:text-red-300 hover:bg-[#1e1e1e] transition-colors"
               >
-                Admin Panel
+                {t('nav.admin')}
               </Link>
             )}
             <a
@@ -158,14 +176,21 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-[#CCFF00] hover:bg-[#1e1e1e] transition-colors"
             >
-              🏆 BG Padel Tour — Официални турнири
+              🏆 BG Padel Tour — {t('nav.tournaments')}
             </a>
             <div className="border-t border-[#2a2a2a] my-2"></div>
+            {/* Language switcher mobile */}
+            <button
+              onClick={() => { toggleLang(); setMenuOpen(false) }}
+              className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-[#1e1e1e] transition-colors"
+            >
+              🌐 {lang === 'bg' ? 'Switch to English' : 'Превключи на Български'}
+            </button>
             <button
               onClick={() => { setMenuOpen(false); handleLogout() }}
               className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-red-400 hover:bg-[#1e1e1e] transition-colors"
             >
-              Изход
+              {t('nav.logout')}
             </button>
           </div>
         )}

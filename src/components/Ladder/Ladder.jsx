@@ -1,23 +1,28 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { getLeagueIcon, getLeagueColor } from '../../lib/elo'
 
-const LEAGUE_TABS = ['Всички', 'Начинаещи', 'Бронз', 'Сребър', 'Злато']
-
 export default function Ladder() {
   const { profile } = useAuth()
+  const { t } = useLanguage()
   const [players, setPlayers] = useState([])
   const [clubs, setClubs] = useState([])
-  const [selectedLeague, setSelectedLeague] = useState('Всички')
+  const [selectedLeague, setSelectedLeague] = useState('all')
   const [selectedClub, setSelectedClub] = useState('')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
-    fetchClubs()
-    fetchPlayers()
-  }, [])
+  const LEAGUE_TABS = [
+    { key: 'all', label: t('ladder.tabs.all') },
+    { key: 'Начинаещи', label: t('leagues.Начинаещи') },
+    { key: 'Бронз', label: t('leagues.Бронз') },
+    { key: 'Сребър', label: t('leagues.Сребър') },
+    { key: 'Злато', label: t('leagues.Злато') },
+  ]
+
+  useEffect(() => { fetchClubs(); fetchPlayers() }, [])
 
   async function fetchClubs() {
     const { data } = await supabase.from('clubs').select('*').order('city')
@@ -33,7 +38,6 @@ export default function Ladder() {
         .eq('is_ranked', true)
         .not('self_assessment_score', 'is', null)
         .order('rating', { ascending: false })
-
       if (data) setPlayers(data)
     } catch (err) {
       console.error('Error fetching ladder:', err)
@@ -43,7 +47,7 @@ export default function Ladder() {
   }
 
   const filtered = players.filter(p => {
-    const leagueMatch = selectedLeague === 'Всички' || p.league === selectedLeague
+    const leagueMatch = selectedLeague === 'all' || p.league === selectedLeague
     const clubMatch = !selectedClub || p.club_id === parseInt(selectedClub)
     const searchMatch = !searchQuery ||
       p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -65,31 +69,28 @@ export default function Ladder() {
     return ''
   }
 
-  function getWinRate(p) {
-    if (!p.approved_matches || p.approved_matches === 0) return '0%'
-    return '—'
-  }
+  const hasFilters = selectedLeague !== 'all' || selectedClub || searchQuery
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-white">Класация</h1>
-        <p className="text-gray-400 mt-0.5">Ranked играчи с минимум 5 одобрени мача</p>
+        <h1 className="text-2xl font-bold text-white">{t('ladder.title')}</h1>
+        <p className="text-gray-400 mt-0.5">{t('ladder.subtitle')}</p>
       </div>
 
       {/* League tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {LEAGUE_TABS.map(tab => (
           <button
-            key={tab}
-            onClick={() => setSelectedLeague(tab)}
+            key={tab.key}
+            onClick={() => setSelectedLeague(tab.key)}
             className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              selectedLeague === tab
+              selectedLeague === tab.key
                 ? 'bg-[#CCFF00] text-black'
                 : 'bg-[#1e1e1e] text-gray-400 hover:text-white'
             }`}
           >
-            {tab !== 'Всички' && getLeagueIcon(tab)} {tab}
+            {tab.key !== 'all' && getLeagueIcon(tab.key)} {tab.label}
           </button>
         ))}
       </div>
@@ -101,26 +102,24 @@ export default function Ladder() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="input-dark sm:max-w-xs"
-          placeholder="Търсене по име..."
+          placeholder={t('ladder.searchPlaceholder')}
         />
         <select
           value={selectedClub}
           onChange={e => setSelectedClub(e.target.value)}
           className="input-dark sm:max-w-xs"
         >
-          <option value="">Всички клубове</option>
+          <option value="">{t('common.allClubs')}</option>
           {clubs.map(club => (
-            <option key={club.id} value={club.id}>
-              {club.name} ({club.city})
-            </option>
+            <option key={club.id} value={club.id}>{club.name} ({club.city})</option>
           ))}
         </select>
-        {(selectedLeague !== 'Всички' || selectedClub || searchQuery) && (
+        {hasFilters && (
           <button
-            onClick={() => { setSelectedLeague('Всички'); setSelectedClub(''); setSearchQuery('') }}
+            onClick={() => { setSelectedLeague('all'); setSelectedClub(''); setSearchQuery('') }}
             className="text-sm text-gray-400 hover:text-[#CCFF00] transition-colors"
           >
-            Изчисти филтри
+            {t('common.clearFilters')}
           </button>
         )}
       </div>
@@ -130,29 +129,29 @@ export default function Ladder() {
         {loading ? (
           <div className="py-16 text-center text-gray-500">
             <div className="w-10 h-10 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            Зареждане на класацията...
+            {t('common.loading')}
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-gray-500">
             <div className="text-5xl mb-3">🏆</div>
-            <p className="text-lg font-medium text-white">Няма играчи в тази категория</p>
-            <p className="text-sm mt-1">Опитайте с различни филтри</p>
+            <p className="text-lg font-medium text-white">{t('ladder.noPlayers')}</p>
+            <p className="text-sm mt-1">{t('ladder.noPlayersHint')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#2a2a2a]">
-                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 w-14">#</th>
-                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3">Играч</th>
-                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">Клуб</th>
-                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">Рейтинг</th>
-                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">Лига</th>
-                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3 hidden lg:table-cell">Мачове</th>
+                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 w-14">{t('ladder.columns.rank')}</th>
+                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3">{t('ladder.columns.player')}</th>
+                  <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">{t('ladder.columns.club')}</th>
+                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('ladder.columns.rating')}</th>
+                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">{t('ladder.columns.league')}</th>
+                  <th className="text-center text-xs text-gray-500 uppercase px-4 py-3 hidden lg:table-cell">{t('ladder.columns.matches')}</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((player, idx) => {
+                {filtered.map((player) => {
                   const globalRank = players.indexOf(player) + 1
                   const isCurrentUser = player.id === profile?.id
                   return (
@@ -171,38 +170,31 @@ export default function Ladder() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0 ${
-                            isCurrentUser ? 'bg-[#CCFF00]' : 'bg-[#444]'
-                          }`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0 ${isCurrentUser ? 'bg-[#CCFF00]' : 'bg-[#444]'}`}>
                             {player.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                           </div>
                           <div>
                             <p className={`font-medium text-sm ${isCurrentUser ? 'text-[#CCFF00]' : 'text-white'}`}>
                               {player.full_name}
-                              {isCurrentUser && <span className="ml-1 text-xs text-gray-500">(Вие)</span>}
+                              {isCurrentUser && <span className="ml-1 text-xs text-gray-500">{t('ladder.you')}</span>}
                             </p>
                             <p className="text-xs text-gray-500">@{player.username}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className="text-sm text-gray-400">
-                          {player.clubs?.name || '—'}
-                        </span>
+                        <span className="text-sm text-gray-400">{player.clubs?.name || '—'}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="font-bold text-[#CCFF00]">{player.rating}</span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell text-center">
-                        <span
-                          className="league-badge"
-                          style={{
-                            backgroundColor: getLeagueColor(player.league) + '22',
-                            color: getLeagueColor(player.league),
-                            border: `1px solid ${getLeagueColor(player.league)}44`
-                          }}
-                        >
-                          {getLeagueIcon(player.league)} {player.league}
+                        <span className="league-badge" style={{
+                          backgroundColor: getLeagueColor(player.league) + '22',
+                          color: getLeagueColor(player.league),
+                          border: `1px solid ${getLeagueColor(player.league)}44`
+                        }}>
+                          {getLeagueIcon(player.league)} {t(`leagues.${player.league}`)}
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell text-center">
@@ -218,7 +210,7 @@ export default function Ladder() {
       </div>
 
       <p className="text-xs text-gray-600 text-center">
-        Показани {filtered.length} от {players.length} ranked играчи
+        {t('ladder.showing', { filtered: filtered.length, total: players.length })}
       </p>
     </div>
   )
