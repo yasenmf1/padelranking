@@ -74,7 +74,7 @@ function MatchmakingForm({ onPublished }) {
       const dt = new Date(`${form.date}T${form.time}:00`)
       dt.setHours(dt.getHours() + 2)
 
-      const { error: insertErr } = await supabase.from('match_requests').insert({
+      const payload = {
         user_id:        profile.id,
         city:           form.city,
         club:           form.club.trim(),
@@ -83,7 +83,14 @@ function MatchmakingForm({ onPublished }) {
         players_needed: form.players_needed,
         status:         'open',
         expires_at:     dt.toISOString(),
-      })
+      }
+      console.log('[Matchmaking] insert payload:', payload)
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from('match_requests')
+        .insert(payload)
+        .select()
+      console.log('[Matchmaking] insert result:', { inserted, insertErr })
       if (insertErr) throw insertErr
 
       const pushCity = notifyTarget === 'all' ? null
@@ -97,10 +104,11 @@ function MatchmakingForm({ onPublished }) {
           body:  `${profile.full_name?.split(' ')[0]} търси мач в ${form.club} в ${form.time}`,
           url:   '/matchmaking',
         },
-      }).catch(() => {})
+      }).catch(e => console.warn('[Matchmaking] push error:', e))
 
       onPublished?.()
     } catch (err) {
+      console.error('[Matchmaking] handlePublish error:', err)
       setError(err.message)
       setStep('form')
     } finally {
@@ -119,7 +127,7 @@ function MatchmakingForm({ onPublished }) {
           >
             ← Назад
           </button>
-          <h2 className="text-lg font-bold text-white">📢 Извести играчи</h2>
+          <h2 className="text-lg font-bold text-white">📢 Кой да получи известие?</h2>
         </div>
 
         <p className="text-gray-400 text-sm">До кой град да изпратим нотификацията?</p>
