@@ -17,6 +17,10 @@ export default function AdminPanel() {
   const [actionLoading, setActionLoading] = useState({})
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [broadcastMsg, setBroadcastMsg] = useState('')
+  const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [playerMessages, setPlayerMessages] = useState({}) // { [matchId]: text }
+  const [playerMsgLoading, setPlayerMsgLoading] = useState({}) // { [matchId]: bool }
 
   const TABS = [
     { key: 'players',  label: t('admin.tabs.players') },
@@ -182,6 +186,53 @@ export default function AdminPanel() {
       fetchDisputes()
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
+  }
+
+  // ── Broadcast ──────────────────────────────────────────
+  async function sendBroadcast() {
+    if (!broadcastMsg.trim()) return
+    setBroadcastLoading(true)
+    setError('')
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_broadcast_notification', {
+        p_message: broadcastMsg.trim(),
+      })
+      if (rpcErr) throw rpcErr
+      showSuccess(`Съобщението е изпратено до ${data} играча.`)
+      setBroadcastMsg('')
+    } catch (err) { setError(err.message) }
+    finally { setBroadcastLoading(false) }
+  }
+
+  // ── Send message to specific player ───────────────────
+  async function sendPlayerMessage(match) {
+    const msg = playerMessages[match.id]?.trim()
+    if (!msg) return
+    const targetPlayer = match.disputer || match.player3 || match.player1
+    if (!targetPlayer) return
+
+    setPlayerMsgLoading(p => ({ ...p, [match.id]: true }))
+    setError('')
+    try {
+      const { error: rpcErr } = await supabase.rpc('admin_send_notification', {
+        p_user_id: targetPlayer.id,
+        p_message: msg,
+      })
+      if (rpcErr) throw rpcErr
+
+      // Email (non-blocking)
+      supabase.functions.invoke('send-admin-message-email', {
+        body: {
+          to_email: targetPlayer.email || '',
+          to_name:  targetPlayer.full_name || '',
+          message:  msg,
+        },
+      }).catch(() => {})
+
+      setPlayerMessages(p => ({ ...p, [match.id]: '' }))
+      showSuccess(`Съобщението е изпратено до ${targetPlayer.full_name}.`)
+    } catch (err) { setError(err.message) }
+    finally { setPlayerMsgLoading(p => ({ ...p, [match.id]: false })) }
   }
 
   // ── Message actions ────────────────────────────────────
@@ -434,6 +485,27 @@ export default function AdminPanel() {
                     )}
                   </div>
 
+                  {/* Message to player */}
+                  <div className="space-y-2 pt-1">
+                    <p className="text-xs text-gray-500 font-medium">✉️ Изпрати съобщение до играча</p>
+                    <textarea
+                      value={playerMessages[match.id] || ''}
+                      onChange={e => setPlayerMessages(p => ({ ...p, [match.id]: e.target.value }))}
+                      className="input-dark resize-none w-full text-sm"
+                      rows={2}
+                      placeholder="Съобщение до оспорващия играч..."
+                    />
+                    <button
+                      onClick={() => sendPlayerMessage(match)}
+                      disabled={playerMsgLoading[match.id] || !playerMessages[match.id]?.trim()}
+                      className="w-full py-2 bg-[#1e1e1e] text-gray-300 text-xs font-semibold rounded-lg border border-[#2a2a2a] hover:border-[#CCFF00]/30 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {playerMsgLoading[match.id]
+                        ? <><div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />Изпращане...</>
+                        : '✉️ Изпрати съобщение + имейл'}
+                    </button>
+                  </div>
+
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button onClick={() => approveDispute(match)} disabled={!!actionLoading[match.id]}
@@ -458,7 +530,31 @@ export default function AdminPanel() {
 
       {/* ── MESSAGES ── */}
       {activeTab === 'messages' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Broadcast section */}
+          <div className="card border-[#CCFF00]/20 bg-[#CCFF00]/5 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📢</span>
+              <h3 className="text-sm font-bold text-white">Изпрати до всички играчи</h3>
+            </div>
+            <textarea
+              value={broadcastMsg}
+              onChange={e => setBroadcastMsg(e.target.value)}
+              className="input-dark resize-none w-full text-sm"
+              rows={3}
+              placeholder="Въведи съобщение до всички регистрирани играчи..."
+            />
+            <button
+              onClick={sendBroadcast}
+              disabled={broadcastLoading || !broadcastMsg.trim()}
+              className="px-4 py-2.5 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {broadcastLoading
+                ? <><div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />Изпращане...</>
+                : '📢 Изпрати до всички'}
+            </button>
+          </div>
+
           <p className="text-gray-400 text-sm">
             {t('admin.messages.count', { n: messages.length })}
             {unreadCount > 0 && <span className="text-red-400 ml-2">{t('admin.messages.unread', { n: unreadCount })}</span>}

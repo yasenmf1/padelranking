@@ -80,6 +80,22 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
       })
       if (rpcErr) throw rpcErr
       if (data?.error) throw new Error(data.error)
+
+      // Email to admin (non-blocking)
+      const setsStr = Array.isArray(match.sets_data)
+        ? match.sets_data.map(s => `${s.p2}-${s.p1}`).join(', ')
+        : ''
+      supabase.functions.invoke('send-dispute-email', {
+        body: {
+          match_id:          match.id,
+          disputer_name:     profile.full_name,
+          disputer_username: profile.username,
+          reason:            reason.trim(),
+          match_date:        match.played_at ? new Date(match.played_at).toLocaleDateString('bg-BG') : '',
+          sets:              setsStr,
+        },
+      }).catch(() => {})
+
       onDone?.()
     } catch (err) {
       setError(err.message || t('common.error'))

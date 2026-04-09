@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import NotificationBell from './NotificationBell'
 
 const BG_PADEL_TOUR_URL = 'https://bgpadeltour.com/bg'
 
@@ -96,6 +97,9 @@ export default function Navbar() {
             >
               {t('nav.langSwitch')}
             </button>
+
+            {/* Notification bell */}
+            <NotificationBell />
 
             {/* Profile */}
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">

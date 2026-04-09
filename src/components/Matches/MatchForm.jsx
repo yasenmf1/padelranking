@@ -184,7 +184,7 @@ export default function MatchForm({ onSubmitted }) {
     try {
       const setsData = sets.filter(s => s.p1 !== '' && s.p2 !== '').map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
       const winnerId = winner === 'team1' ? profile.id : opponent1.id
-      const { error: insertError } = await supabase.from('matches').insert({
+      const { data: insertData, error: insertError } = await supabase.from('matches').insert({
         player1_id: profile.id, player2_id: partner.id,
         player3_id: opponent1.id, player4_id: opponent2.id,
         winner_id: winnerId, match_type: matchType, sets_data: setsData,
@@ -195,8 +195,13 @@ export default function MatchForm({ onSubmitted }) {
         club_id: clubId ? parseInt(clubId) : null,
         played_at: new Date(playedAt).toISOString(), submitted_by: profile.id,
         admin_note: notes || null
-      })
+      }).select('id').single()
       if (insertError) throw insertError
+
+      // Notify opponents (non-blocking)
+      if (insertData?.id) {
+        supabase.rpc('notify_match_submitted', { p_match_id: insertData.id }).catch(() => {})
+      }
       setSuccess(true)
       setPartner(null); setOpponent1(null); setOpponent2(null)
       setSets([{ p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' }])

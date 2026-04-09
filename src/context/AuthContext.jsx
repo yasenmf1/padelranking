@@ -97,6 +97,16 @@ export function AuthProvider({ children }) {
 
     if (profileError) throw profileError
 
+    // Send welcome email (non-blocking — failure doesn't break registration)
+    supabase.functions.invoke('send-welcome-email', {
+      body: {
+        email,
+        full_name: userData.full_name,
+        rating: 500,
+        league: 'Начинаещи',
+      },
+    }).catch(() => {/* ignore email errors */})
+
     return authData
   }
 
