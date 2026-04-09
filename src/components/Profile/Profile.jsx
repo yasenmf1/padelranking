@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { getLeagueIcon, getLeagueColor, getLeagueProgress } from '../../lib/elo'
+import EloChart from './EloChart'
 
 // score = raw points (10-100)
 function getSALevel(score) {
@@ -48,10 +49,19 @@ export default function Profile() {
   async function fetchRatingHistory() {
     const { data } = await supabase
       .from('rankings_history')
-      .select('rating, league, created_at')
+      .select(`
+        rating, league, created_at, match_id,
+        match:matches(
+          played_at, player1_id, player2_id, player3_id, player4_id,
+          player1:profiles!matches_player1_id_fkey(full_name),
+          player2:profiles!matches_player2_id_fkey(full_name),
+          player3:profiles!matches_player3_id_fkey(full_name),
+          player4:profiles!matches_player4_id_fkey(full_name)
+        )
+      `)
       .eq('player_id', profile.id)
       .order('created_at', { ascending: true })
-      .limit(20)
+      .limit(30)
     if (data) setRatingHistory(data)
   }
 
@@ -107,13 +117,6 @@ export default function Profile() {
   const progress = getLeagueProgress(rating)
   const leagueColor = getLeagueColor(league)
   const winRate = matchStats.total > 0 ? Math.round((matchStats.wins / matchStats.total) * 100) : 0
-
-  const maxRating = ratingHistory.length > 0
-    ? Math.max(...ratingHistory.map(h => h.rating), rating)
-    : rating + 100
-  const minRating = ratingHistory.length > 0
-    ? Math.min(...ratingHistory.map(h => h.rating), rating)
-    : rating - 100
 
   const saQuestions = t('profile.saQuestions')
 
@@ -289,41 +292,8 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Rating history chart */}
-      {ratingHistory.length > 0 && (
-        <div className="card">
-          <h3 className="text-base font-bold text-white mb-4">{t('profile.ratingHistory')}</h3>
-          <div className="relative">
-            <div className="flex items-end gap-1 h-32">
-              {ratingHistory.map((entry, idx) => {
-                const heightPct = maxRating === minRating
-                  ? 50
-                  : ((entry.rating - minRating) / (maxRating - minRating)) * 100
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center justify-end gap-0.5 group relative">
-                    <div
-                      className="w-full rounded-t bg-[#CCFF00]/40 hover:bg-[#CCFF00] transition-colors cursor-pointer"
-                      style={{ height: `${Math.max(4, heightPct)}%` }}
-                    >
-                    </div>
-                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block bg-[#1e1e1e] border border-[#2a2a2a] rounded px-2 py-1 text-xs text-white whitespace-nowrap z-10">
-                      {entry.rating} ELO
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex justify-between text-xs text-gray-600 mt-2">
-              <span>{new Date(ratingHistory[0].created_at).toLocaleDateString('bg-BG', { month: 'short', day: 'numeric' })}</span>
-              <span>{new Date(ratingHistory[ratingHistory.length - 1].created_at).toLocaleDateString('bg-BG', { month: 'short', day: 'numeric' })}</span>
-            </div>
-            <div className="absolute left-0 top-0 flex flex-col justify-between h-32 pointer-events-none">
-              <span className="text-xs text-gray-600">{maxRating}</span>
-              <span className="text-xs text-gray-600">{minRating}</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ELO Chart */}
+      <EloChart history={ratingHistory} profileId={profile.id} />
 
       {/* Self-assessment card */}
       <div className="card space-y-4">
