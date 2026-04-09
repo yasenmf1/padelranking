@@ -48,7 +48,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/questionnaire" replace />
   }
 
-  if (adminOnly && profile.email !== 'office@motamo.bg') {
+  if (adminOnly && !profile.is_admin) {
     return <Navigate to="/" replace />
   }
 
