@@ -190,7 +190,9 @@ export default function MatchForm({ onSubmitted }) {
         winner_id: winnerId, match_type: matchType, sets_data: setsData,
         player1_rating_before: profile.rating, player2_rating_before: partner.rating,
         player3_rating_before: opponent1.rating, player4_rating_before: opponent2.rating,
-        status: 'pending', club_id: clubId ? parseInt(clubId) : null,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+        club_id: clubId ? parseInt(clubId) : null,
         played_at: new Date(playedAt).toISOString(), submitted_by: profile.id,
         admin_note: notes || null
       })

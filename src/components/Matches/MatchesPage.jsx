@@ -4,17 +4,14 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import MatchForm from './MatchForm'
 import MatchList from './MatchList'
+import ConfirmationSection from './ConfirmationSection'
 
 export default function MatchesPage() {
   const { profile } = useAuth()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('record')
   const [refreshKey, setRefreshKey] = useState(0)
-
-  const TABS = [
-    { key: 'record', label: t('matchesPage.tabRecord') },
-    { key: 'history', label: t('matchesPage.tabHistory') },
-  ]
+  const [pendingCount, setPendingCount] = useState(0)
 
   function handleSubmitted() {
     setRefreshKey(k => k + 1)
@@ -39,17 +36,25 @@ export default function MatchesPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-[#2a2a2a]">
-        {TABS.map(tab => (
+        {[
+          { key: 'record', label: t('matchesPage.tabRecord') },
+          { key: 'history', label: t('matchesPage.tabHistory') },
+        ].map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === tab.key
                 ? 'border-[#CCFF00] text-[#CCFF00]'
                 : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
             {tab.label}
+            {tab.key === 'history' && pendingCount > 0 && (
+              <span className="bg-yellow-400 text-black text-xs font-black rounded-full w-5 h-5 flex items-center justify-center leading-none animate-pulse">
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -57,7 +62,12 @@ export default function MatchesPage() {
       {activeTab === 'record' ? (
         <MatchForm onSubmitted={handleSubmitted} />
       ) : (
-        <MatchList refresh={refreshKey} />
+        <div className="space-y-5">
+          <ConfirmationSection
+            onCountChange={setPendingCount}
+          />
+          <MatchList refresh={refreshKey} />
+        </div>
       )}
     </div>
   )

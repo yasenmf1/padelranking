@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
-import { calculateElo, getLeague } from '../../lib/elo'
+import { applyEloForMatch } from '../../lib/matchUtils'
 
 export default function AdminPanel() {
   const { profile } = useAuth()
@@ -10,6 +10,7 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('players')
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
+  const [disputes, setDisputes] = useState([])
   const [messages, setMessages] = useState([])
   const [matchFilter, setMatchFilter] = useState('pending')
   const [loading, setLoading] = useState(true)
@@ -18,20 +19,25 @@ export default function AdminPanel() {
   const [success, setSuccess] = useState('')
 
   const TABS = [
-    { key: 'players', label: t('admin.tabs.players') },
-    { key: 'matches', label: t('admin.tabs.matches') },
+    { key: 'players',  label: t('admin.tabs.players') },
+    { key: 'matches',  label: t('admin.tabs.matches') },
+    { key: 'disputed', label: t('admin.tabs.disputed') },
     { key: 'messages', label: t('admin.tabs.messages') },
   ]
 
   const STATUS_LABEL = {
-    pending: { text: t('admin.matches.statusPending'), cls: 'bg-yellow-500/20 text-yellow-400' },
-    approved: { text: t('admin.matches.statusApproved'), cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
-    rejected: { text: t('admin.matches.statusRejected'), cls: 'bg-red-500/20 text-red-400' },
+    pending:   { text: t('admin.matches.statusPending'),  cls: 'bg-yellow-500/20 text-yellow-400' },
+    confirmed: { text: t('matchList.statusConfirmed'),     cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
+    approved:  { text: t('admin.matches.statusApproved'), cls: 'bg-[#CCFF00]/20 text-[#CCFF00]' },
+    disputed:  { text: t('matchList.statusDisputed'),      cls: 'bg-orange-500/20 text-orange-400' },
+    expired:   { text: t('matchList.statusExpired'),       cls: 'bg-[#2a2a2a] text-gray-500' },
+    rejected:  { text: t('admin.matches.statusRejected'), cls: 'bg-red-500/20 text-red-400' },
   }
 
   useEffect(() => {
-    if (activeTab === 'players') fetchPlayers()
-    else if (activeTab === 'matches') fetchMatches()
+    if (activeTab === 'players')  fetchPlayers()
+    else if (activeTab === 'matches')  fetchMatches()
+    else if (activeTab === 'disputed') fetchDisputes()
     else if (activeTab === 'messages') fetchMessages()
   }, [activeTab])
 
@@ -41,13 +47,18 @@ export default function AdminPanel() {
 
   // ── Fetch ──────────────────────────────────────────────
 
+  const PLAYER_JOIN = `
+    player1:profiles!matches_player1_id_fkey(id, full_name, username, rating, approved_matches),
+    player2:profiles!matches_player2_id_fkey(id, full_name, username, rating, approved_matches),
+    player3:profiles!matches_player3_id_fkey(id, full_name, username, rating, approved_matches),
+    player4:profiles!matches_player4_id_fkey(id, full_name, username, rating, approved_matches),
+    clubs(name, city)
+  `
+
   async function fetchPlayers() {
     setLoading(true)
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*, clubs(name, city)')
-        .order('created_at', { ascending: false })
+      const { data } = await supabase.from('profiles').select('*, clubs(name, city)').order('created_at', { ascending: false })
       if (data) setPlayers(data)
     } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
@@ -56,17 +67,7 @@ export default function AdminPanel() {
   async function fetchMatches() {
     setLoading(true)
     try {
-      let q = supabase
-        .from('matches')
-        .select(`
-          *,
-          player1:profiles!matches_player1_id_fkey(id, full_name, username, rating, approved_matches),
-          player2:profiles!matches_player2_id_fkey(id, full_name, username, rating, approved_matches),
-          player3:profiles!matches_player3_id_fkey(id, full_name, username, rating, approved_matches),
-          player4:profiles!matches_player4_id_fkey(id, full_name, username, rating, approved_matches),
-          clubs(name, city)
-        `)
-        .order('created_at', { ascending: false })
+      let q = supabase.from('matches').select(`*, ${PLAYER_JOIN}`).order('created_at', { ascending: false })
       if (matchFilter !== 'all') q = q.eq('status', matchFilter)
       const { data } = await q
       if (data) setMatches(data)
@@ -74,13 +75,24 @@ export default function AdminPanel() {
     finally { setLoading(false) }
   }
 
-  async function fetchMessages() {
+  async function fetchDisputes() {
     setLoading(true)
     try {
       const { data } = await supabase
-        .from('contact_messages')
-        .select('*')
+        .from('matches')
+        .select(`*, ${PLAYER_JOIN},
+          disputer:profiles!matches_disputed_by_fkey(id, full_name, username)`)
+        .eq('status', 'disputed')
         .order('created_at', { ascending: false })
+      if (data) setDisputes(data)
+    } catch { setError(t('admin.players.errorLoad')) }
+    finally { setLoading(false) }
+  }
+
+  async function fetchMessages() {
+    setLoading(true)
+    try {
+      const { data } = await supabase.from('contact_messages').select('*').order('created_at', { ascending: false })
       if (data) setMessages(data)
     } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
@@ -100,63 +112,25 @@ export default function AdminPanel() {
     finally { setActionLoading(p => ({ ...p, [player.id]: null })) }
   }
 
-  // ── Match actions ──────────────────────────────────────
+  // ── Match actions (legacy pending → approved) ──────────
 
   async function approveMatch(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
     setError('')
     try {
-      const setsData = match.sets_data || []
-      let t1Wins = 0, t2Wins = 0
-      for (const s of setsData) {
-        if (s.p1 > s.p2) t1Wins++
-        else if (s.p2 > s.p1) t2Wins++
-      }
-      const t1Avg = Math.round(((match.player1?.rating || 500) + (match.player2?.rating || 500)) / 2)
-      const t2Avg = Math.round(((match.player3?.rating || 500) + (match.player4?.rating || 500)) / 2)
-      const { newRatingA: newT1Avg, newRatingB: newT2Avg } = calculateElo(t1Avg, t2Avg, t1Wins, t2Wins, match.match_type)
-      const d1 = newT1Avg - t1Avg, d2 = newT2Avg - t2Avg
-
-      const newR = {
-        p1: Math.max(0, (match.player1?.rating || 500) + d1),
-        p2: Math.max(0, (match.player2?.rating || 500) + d1),
-        p3: Math.max(0, (match.player3?.rating || 500) + d2),
-        p4: Math.max(0, (match.player4?.rating || 500) + d2),
-      }
-
+      const result = await applyEloForMatch(match)
       const { error: mErr } = await supabase.from('matches').update({
         status: 'approved',
-        player1_rating_after: newR.p1, player2_rating_after: newR.p2,
-        player3_rating_after: newR.p3, player4_rating_after: newR.p4,
-        reviewed_by: profile.id
+        reviewed_by: profile.id,
       }).eq('id', match.id)
       if (mErr) throw mErr
 
-      const updates = [
-        { id: match.player1_id, r: newR.p1 },
-        { id: match.player2_id, r: newR.p2 },
-        { id: match.player3_id, r: newR.p3 },
-        { id: match.player4_id, r: newR.p4 },
-      ].filter(u => u.id)
-
-      const playerData = [match.player1, match.player2, match.player3, match.player4]
-      for (let i = 0; i < updates.length; i++) {
-        const prev = playerData[i]
-        const newMatches = (prev?.approved_matches || 0) + 1
-        await supabase.from('profiles').update({
-          rating: updates[i].r, league: getLeague(updates[i].r),
-          approved_matches: newMatches, is_ranked: newMatches >= 5,
-          updated_at: new Date().toISOString()
-        }).eq('id', updates[i].id)
-      }
-
-      await supabase.from('rankings_history').insert(updates.filter(u => u.id).map(u => ({
-        player_id: u.id, rating: u.r, league: getLeague(u.r), match_id: match.id
-      })))
-
-      const d1Str = (d1 >= 0 ? '+' : '') + d1
-      const d2Str = (d2 >= 0 ? '+' : '') + d2
-      showSuccess(t('admin.matches.approveSuccess', { t1: t1Avg, n1: newT1Avg, d1: d1Str, t2: t2Avg, n2: newT2Avg, d2: d2Str }))
+      const d1Str = (result.d1 >= 0 ? '+' : '') + result.d1
+      const d2Str = (result.d2 >= 0 ? '+' : '') + result.d2
+      showSuccess(t('admin.matches.approveSuccess', {
+        t1: result.t1Avg, n1: result.newT1Avg, d1: d1Str,
+        t2: result.t2Avg, n2: result.newT2Avg, d2: d2Str,
+      }))
       fetchMatches()
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
@@ -166,11 +140,48 @@ export default function AdminPanel() {
     setActionLoading(p => ({ ...p, [match.id]: 'rejecting' }))
     try {
       const { error } = await supabase.from('matches').update({
-        status: 'rejected', reviewed_by: profile.id
+        status: 'rejected', reviewed_by: profile.id,
       }).eq('id', match.id)
       if (error) throw error
       showSuccess(t('admin.matches.rejectSuccess'))
       fetchMatches()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
+  }
+
+  // ── Dispute actions ────────────────────────────────────
+
+  async function approveDispute(match) {
+    setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
+    setError('')
+    try {
+      const result = await applyEloForMatch(match)
+      const { error: mErr } = await supabase.from('matches').update({
+        status: 'approved',
+        reviewed_by: profile.id,
+      }).eq('id', match.id)
+      if (mErr) throw mErr
+
+      const d1Str = (result.d1 >= 0 ? '+' : '') + result.d1
+      const d2Str = (result.d2 >= 0 ? '+' : '') + result.d2
+      showSuccess(t('admin.disputed.approveSuccess', {
+        t1: result.t1Avg, n1: result.newT1Avg, d1: d1Str,
+        t2: result.t2Avg, n2: result.newT2Avg, d2: d2Str,
+      }))
+      fetchDisputes()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
+  }
+
+  async function rejectDispute(match) {
+    setActionLoading(p => ({ ...p, [match.id]: 'rejecting' }))
+    try {
+      const { error } = await supabase.from('matches').update({
+        status: 'rejected', reviewed_by: profile.id,
+      }).eq('id', match.id)
+      if (error) throw error
+      showSuccess(t('admin.disputed.rejectSuccess'))
+      fetchDisputes()
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
   }
@@ -186,10 +197,7 @@ export default function AdminPanel() {
 
   // ── Helpers ────────────────────────────────────────────
 
-  function showSuccess(msg) {
-    setSuccess(msg)
-    setTimeout(() => setSuccess(''), 5000)
-  }
+  function showSuccess(msg) { setSuccess(msg); setTimeout(() => setSuccess(''), 5000) }
 
   function formatDate(str) {
     return new Date(str).toLocaleDateString('bg-BG', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -201,6 +209,7 @@ export default function AdminPanel() {
   }
 
   const unreadCount = messages.filter(m => !m.is_read).length
+  const disputeCount = disputes.length
 
   const Spinner = () => (
     <div className="py-10 text-center text-gray-500">
@@ -208,6 +217,50 @@ export default function AdminPanel() {
       {t('common.loading')}
     </div>
   )
+
+  // ── Shared match card ─────────────────────────────────
+
+  function MatchCard({ match, actions }) {
+    const status = STATUS_LABEL[match.status] || STATUS_LABEL.pending
+    const setsData = match.sets_data || []
+    let t1W = 0, t2W = 0
+    for (const s of setsData) {
+      if (s.p1 > s.p2) t1W++
+      else if (s.p2 > s.p1) t2W++
+    }
+    return (
+      <div className={`card ${match.status === 'pending' ? 'border-yellow-500/20 bg-yellow-500/5' : match.status === 'disputed' ? 'border-orange-500/20 bg-orange-500/5' : ''}`}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-xs text-gray-500">#{match.id?.slice(0, 8)}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.cls}`}>{status.text}</span>
+              <span className="text-xs text-gray-500">{match.match_type?.toUpperCase()}</span>
+              <span className="text-xs text-gray-600">{formatDate(match.played_at)}</span>
+              {match.clubs && <span className="text-xs text-gray-600">{match.clubs.name}</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team1')}</p>
+                <p className="text-white text-sm font-medium leading-tight">{match.player1?.full_name}</p>
+                <p className="text-white text-sm font-medium leading-tight">{match.player2?.full_name}</p>
+              </div>
+              <div className="text-center flex-shrink-0">
+                <p className="text-[#CCFF00] font-mono font-black text-xl">{t1W} – {t2W}</p>
+                <p className="text-gray-600 text-xs">{formatSets(setsData)}</p>
+              </div>
+              <div className="flex-1 text-right">
+                <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team2')}</p>
+                <p className="text-white text-sm font-medium leading-tight">{match.player3?.full_name}</p>
+                <p className="text-white text-sm font-medium leading-tight">{match.player4?.full_name}</p>
+              </div>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
@@ -220,12 +273,12 @@ export default function AdminPanel() {
       {success && <div className="p-3 bg-[#CCFF00]/10 border border-[#CCFF00]/30 rounded-lg text-[#CCFF00] text-sm">{success}</div>}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#2a2a2a]">
+      <div className="flex gap-2 border-b border-[#2a2a2a] overflow-x-auto">
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 flex-shrink-0 ${
               activeTab === tab.key ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
@@ -233,6 +286,11 @@ export default function AdminPanel() {
             {tab.key === 'messages' && unreadCount > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                 {unreadCount}
+              </span>
+            )}
+            {tab.key === 'disputed' && disputeCount > 0 && (
+              <span className="bg-orange-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                {disputeCount}
               </span>
             )}
           </button>
@@ -272,21 +330,17 @@ export default function AdminPanel() {
                         <span className="text-[#CCFF00] font-bold">{player.rating}</span>
                         <p className="text-gray-600 text-xs">{t(`leagues.${player.league}`) || player.league}</p>
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-400">
-                        {player.approved_matches || 0}
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">
-                        {formatDate(player.created_at)}
-                      </td>
+                      <td className="px-4 py-3 text-center text-gray-400">{player.approved_matches || 0}</td>
+                      <td className="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">{formatDate(player.created_at)}</td>
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => deletePlayer(player)}
                           disabled={!!actionLoading[player.id] || player.email === 'office@motamo.bg'}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          {actionLoading[player.id] === 'deleting' ? (
-                            <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                          ) : t('admin.players.deleteBtn')}
+                          {actionLoading[player.id] === 'deleting'
+                            ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                            : t('admin.players.deleteBtn')}
                         </button>
                       </td>
                     </tr>
@@ -301,30 +355,23 @@ export default function AdminPanel() {
       {/* ── MATCHES ── */}
       {activeTab === 'matches' && (
         <div className="space-y-4">
-          {/* Filter tabs */}
           <div className="flex gap-2 flex-wrap">
             {[
-              { key: 'pending', label: t('admin.matches.filterPending') },
-              { key: 'approved', label: t('admin.matches.filterApproved') },
-              { key: 'rejected', label: t('admin.matches.filterRejected') },
-              { key: 'all', label: t('admin.matches.filterAll') },
+              { key: 'pending',   label: t('admin.matches.filterPending') },
+              { key: 'confirmed', label: t('matchList.tabs.confirmed') },
+              { key: 'approved',  label: t('admin.matches.filterApproved') },
+              { key: 'rejected',  label: t('admin.matches.filterRejected') },
+              { key: 'all',       label: t('admin.matches.filterAll') },
             ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setMatchFilter(f.key)}
+              <button key={f.key} onClick={() => setMatchFilter(f.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  matchFilter === f.key
-                    ? 'bg-[#CCFF00] text-black'
-                    : 'bg-[#1e1e1e] text-gray-400 hover:text-white'
-                }`}
-              >
+                  matchFilter === f.key ? 'bg-[#CCFF00] text-black' : 'bg-[#1e1e1e] text-gray-400 hover:text-white'
+                }`}>
                 {f.label}
               </button>
             ))}
           </div>
-
           <p className="text-gray-400 text-sm">{t('admin.matches.count', { n: matches.length })}</p>
-
           {loading ? <Spinner /> : matches.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-2">📭</div>
@@ -332,75 +379,80 @@ export default function AdminPanel() {
             </div>
           ) : (
             <div className="space-y-3">
-              {matches.map(match => {
-                const setsData = match.sets_data || []
-                let t1W = 0, t2W = 0
-                for (const s of setsData) {
-                  if (s.p1 > s.p2) t1W++
-                  else if (s.p2 > s.p1) t2W++
-                }
-                const status = STATUS_LABEL[match.status] || STATUS_LABEL.pending
-                const isPending = match.status === 'pending'
-
-                return (
-                  <div key={match.id} className={`card ${isPending ? 'border-yellow-500/20 bg-yellow-500/5' : ''}`}>
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3 flex-wrap">
-                          <span className="text-xs text-gray-500">#{match.id}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.cls}`}>
-                            {status.text}
-                          </span>
-                          <span className="text-xs text-gray-500">{match.match_type?.toUpperCase()}</span>
-                          <span className="text-xs text-gray-600">{formatDate(match.played_at)}</span>
-                          {match.clubs && <span className="text-xs text-gray-600">{match.clubs.name}</span>}
-                        </div>
-
-                        {/* Teams */}
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team1')}</p>
-                            <p className="text-white text-sm font-medium leading-tight">{match.player1?.full_name}</p>
-                            <p className="text-white text-sm font-medium leading-tight">{match.player2?.full_name}</p>
-                          </div>
-                          <div className="text-center flex-shrink-0">
-                            <p className="text-[#CCFF00] font-mono font-black text-xl">{t1W} – {t2W}</p>
-                            <p className="text-gray-600 text-xs">{formatSets(setsData)}</p>
-                          </div>
-                          <div className="flex-1 text-right">
-                            <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team2')}</p>
-                            <p className="text-white text-sm font-medium leading-tight">{match.player3?.full_name}</p>
-                            <p className="text-white text-sm font-medium leading-tight">{match.player4?.full_name}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isPending && (
-                        <div className="flex sm:flex-col gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => approveMatch(match)}
-                            disabled={!!actionLoading[match.id]}
-                            className="flex-1 sm:flex-none px-4 py-2 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                          >
-                            {actionLoading[match.id] === 'approving'
-                              ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                              : t('admin.matches.approveBtn')}
-                          </button>
-                          <button
-                            onClick={() => rejectMatch(match)}
-                            disabled={!!actionLoading[match.id]}
-                            className="flex-1 sm:flex-none px-4 py-2 bg-red-500/20 text-red-400 text-sm font-semibold rounded-lg hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                          >
-                            {actionLoading[match.id] === 'rejecting'
-                              ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                              : t('admin.matches.rejectBtn')}
-                          </button>
-                        </div>
-                      )}
+              {matches.map(match => (
+                <MatchCard key={match.id} match={match} actions={
+                  match.status === 'pending' ? (
+                    <div className="flex sm:flex-col gap-2 flex-shrink-0">
+                      <button onClick={() => approveMatch(match)} disabled={!!actionLoading[match.id]}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                        {actionLoading[match.id] === 'approving'
+                          ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          : t('admin.matches.approveBtn')}
+                      </button>
+                      <button onClick={() => rejectMatch(match)} disabled={!!actionLoading[match.id]}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-red-500/20 text-red-400 text-sm font-semibold rounded-lg hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                        {actionLoading[match.id] === 'rejecting'
+                          ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                          : t('admin.matches.rejectBtn')}
+                      </button>
                     </div>
+                  ) : null
+                } />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── DISPUTED ── */}
+      {activeTab === 'disputed' && (
+        <div className="space-y-4">
+          <p className="text-gray-400 text-sm">{t('admin.disputed.count', { n: disputes.length })}</p>
+          {loading ? <Spinner /> : disputes.length === 0 ? (
+            <div className="card text-center py-10">
+              <div className="text-4xl mb-2">✅</div>
+              <p className="text-white font-medium">{t('admin.disputed.none')}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {disputes.map(match => (
+                <div key={match.id} className="card border-orange-500/20 bg-orange-500/5 space-y-4">
+                  {/* Teams */}
+                  <MatchCard match={match} actions={null} />
+
+                  {/* Dispute info */}
+                  <div className="p-3 bg-[#1a1a1a] rounded-lg border border-orange-500/20 space-y-2">
+                    {match.disputer && (
+                      <p className="text-xs text-gray-400">
+                        <span className="text-orange-400 font-semibold">{t('admin.disputed.disputedBy')}:</span>{' '}
+                        {match.disputer.full_name} (@{match.disputer.username})
+                      </p>
+                    )}
+                    {match.dispute_reason && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">{t('admin.disputed.reason')}</p>
+                        <p className="text-sm text-white leading-relaxed">{match.dispute_reason}</p>
+                      </div>
+                    )}
                   </div>
-                )
-              })}
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button onClick={() => approveDispute(match)} disabled={!!actionLoading[match.id]}
+                      className="flex-1 py-2.5 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                      {actionLoading[match.id] === 'approving'
+                        ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        : t('admin.disputed.approveBtn')}
+                    </button>
+                    <button onClick={() => rejectDispute(match)} disabled={!!actionLoading[match.id]}
+                      className="flex-1 py-2.5 bg-red-500/20 text-red-400 text-sm font-semibold rounded-lg hover:bg-red-500/30 border border-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                      {actionLoading[match.id] === 'rejecting'
+                        ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                        : t('admin.disputed.rejectBtn')}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -413,7 +465,6 @@ export default function AdminPanel() {
             {t('admin.messages.count', { n: messages.length })}
             {unreadCount > 0 && <span className="text-red-400 ml-2">{t('admin.messages.unread', { n: unreadCount })}</span>}
           </p>
-
           {loading ? <Spinner /> : messages.length === 0 ? (
             <div className="card text-center py-10">
               <div className="text-4xl mb-2">📭</div>
@@ -422,14 +473,7 @@ export default function AdminPanel() {
           ) : (
             <div className="space-y-3">
               {messages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`card transition-colors ${
-                    !msg.is_read
-                      ? 'border-[#CCFF00]/30 bg-[#CCFF00]/5'
-                      : 'opacity-60'
-                  }`}
-                >
+                <div key={msg.id} className={`card transition-colors ${!msg.is_read ? 'border-[#CCFF00]/30 bg-[#CCFF00]/5' : 'opacity-60'}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -443,10 +487,8 @@ export default function AdminPanel() {
                       <p className="text-gray-600 text-xs mt-2">{formatDate(msg.created_at)}</p>
                     </div>
                     {!msg.is_read && (
-                      <button
-                        onClick={() => markRead(msg)}
-                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] text-gray-400 hover:text-white border border-[#2a2a2a] hover:border-[#CCFF00]/30 transition-colors"
-                      >
+                      <button onClick={() => markRead(msg)}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] text-gray-400 hover:text-white border border-[#2a2a2a] hover:border-[#CCFF00]/30 transition-colors">
                         {t('admin.messages.markRead')}
                       </button>
                     )}

@@ -3,6 +3,15 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 
+// Statuses where ELO was applied and we can show win/loss
+const RESOLVED = ['approved', 'confirmed']
+
+function isExpiredClient(match) {
+  if (match.status !== 'pending') return false
+  if (!match.expires_at) return false
+  return new Date(match.expires_at) < new Date()
+}
+
 export default function MatchList({ refresh }) {
   const { profile } = useAuth()
   const { t } = useLanguage()
@@ -11,9 +20,11 @@ export default function MatchList({ refresh }) {
   const [loading, setLoading] = useState(true)
 
   const STATUS_TABS = [
-    { key: 'all', label: t('matchList.tabs.all') },
-    { key: 'pending', label: t('matchList.tabs.pending') },
-    { key: 'approved', label: t('matchList.tabs.approved') },
+    { key: 'all',      label: t('matchList.tabs.all') },
+    { key: 'pending',  label: t('matchList.tabs.pending') },
+    { key: 'confirmed',label: t('matchList.tabs.confirmed') },
+    { key: 'disputed', label: t('matchList.tabs.disputed') },
+    { key: 'expired',  label: t('matchList.tabs.expired') },
     { key: 'rejected', label: t('matchList.tabs.rejected') },
   ]
 
@@ -37,7 +48,18 @@ export default function MatchList({ refresh }) {
     finally { setLoading(false) }
   }
 
-  const filtered = matches.filter(m => activeTab === 'all' || m.status === activeTab)
+  // Effective status accounts for client-side expiry
+  function effectiveStatus(m) {
+    if (isExpiredClient(m)) return 'expired'
+    return m.status
+  }
+
+  const filtered = matches.filter(m => {
+    const s = effectiveStatus(m)
+    if (activeTab === 'all') return true
+    if (activeTab === 'confirmed') return s === 'confirmed' || s === 'approved'
+    return s === activeTab
+  })
 
   function getMyTeam(match) {
     if (match.player1_id === profile.id || match.player2_id === profile.id) return 'team1'
@@ -57,15 +79,15 @@ export default function MatchList({ refresh }) {
   }
 
   function getResult(match) {
-    if (match.status !== 'approved') return null
+    if (!RESOLVED.includes(match.status)) return null
     const myTeam = getMyTeam(match)
-    const team1Won = match.winner_id === match.player1_id
+    const team1Won = match.winner_id === match.player1_id || match.winner_id === match.player2_id
     if (myTeam === 'team1') return team1Won ? 'win' : 'loss'
     return team1Won ? 'loss' : 'win'
   }
 
   function getRatingChange(match) {
-    if (match.status !== 'approved') return null
+    if (!RESOLVED.includes(match.status)) return null
     if (match.player1_id === profile.id) return (match.player1_rating_after || 0) - (match.player1_rating_before || 0)
     if (match.player2_id === profile.id) return (match.player2_rating_after || 0) - (match.player2_rating_before || 0)
     if (match.player3_id === profile.id) return (match.player3_rating_after || 0) - (match.player3_rating_before || 0)
@@ -85,17 +107,34 @@ export default function MatchList({ refresh }) {
   }
 
   const statusCounts = {
-    all: matches.length,
-    pending: matches.filter(m => m.status === 'pending').length,
-    approved: matches.filter(m => m.status === 'approved').length,
-    rejected: matches.filter(m => m.status === 'rejected').length,
+    all:       matches.length,
+    pending:   matches.filter(m => m.status === 'pending' && !isExpiredClient(m)).length,
+    confirmed: matches.filter(m => m.status === 'confirmed' || m.status === 'approved').length,
+    disputed:  matches.filter(m => m.status === 'disputed').length,
+    expired:   matches.filter(m => m.status === 'expired' || isExpiredClient(m)).length,
+    rejected:  matches.filter(m => m.status === 'rejected').length,
+  }
+
+  function getCardStyle(match) {
+    const s = effectiveStatus(match)
+    const result = getResult(match)
+    if (s === 'pending')   return 'border-yellow-500/20 bg-yellow-500/5'
+    if (s === 'confirmed' || s === 'approved') {
+      return result === 'win'
+        ? 'border-[#CCFF00]/20 bg-[#CCFF00]/5'
+        : 'border-red-500/20 bg-red-500/5'
+    }
+    if (s === 'disputed')  return 'border-orange-500/20 bg-orange-500/5'
+    if (s === 'expired')   return 'border-[#2a2a2a] bg-[#111111] opacity-50'
+    return 'border-[#2a2a2a] bg-[#111111] opacity-60'
   }
 
   return (
     <div className="card space-y-4">
       <h2 className="text-lg font-bold text-white">{t('matchList.title')}</h2>
 
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      {/* Status tabs */}
+      <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
         {STATUS_TABS.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
@@ -124,17 +163,14 @@ export default function MatchList({ refresh }) {
       ) : (
         <div className="space-y-2">
           {filtered.map(match => {
+            const s = effectiveStatus(match)
             const result = getResult(match)
             const ratingChange = getRatingChange(match)
             const teammate = getTeammates(match)
             const opponents = getOpponentTeam(match)
 
             return (
-              <div key={match.id} className={`p-4 rounded-xl border transition-colors ${
-                match.status === 'pending' ? 'border-yellow-500/20 bg-yellow-500/5' :
-                match.status === 'approved' ? (result === 'win' ? 'border-[#CCFF00]/20 bg-[#CCFF00]/5' : 'border-red-500/20 bg-red-500/5') :
-                'border-[#2a2a2a] bg-[#111111] opacity-60'
-              }`}>
+              <div key={match.id} className={`p-4 rounded-xl border transition-colors ${getCardStyle(match)}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2 mb-1.5">
@@ -161,16 +197,19 @@ export default function MatchList({ refresh }) {
                     </div>
                   </div>
 
+                  {/* Status badge */}
                   <div className="text-right flex-shrink-0">
-                    {match.status === 'pending' && (
+                    {s === 'pending' && (
                       <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                         {t('matchList.statusPending')}
                       </span>
                     )}
-                    {match.status === 'approved' && (
+                    {(s === 'confirmed' || s === 'approved') && (
                       <>
                         <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
-                          result === 'win' ? 'bg-[#CCFF00]/20 text-[#CCFF00] border border-[#CCFF00]/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          result === 'win'
+                            ? 'bg-[#CCFF00]/20 text-[#CCFF00] border border-[#CCFF00]/30'
+                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
                         }`}>
                           {result === 'win' ? t('matchList.statusWin') : t('matchList.statusLoss')}
                         </span>
@@ -179,16 +218,38 @@ export default function MatchList({ refresh }) {
                             {ratingChange >= 0 ? '+' : ''}{ratingChange} ELO
                           </p>
                         )}
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {s === 'confirmed' ? t('matchList.statusConfirmed') : '✓ Admin'}
+                        </p>
                       </>
                     )}
-                    {match.status === 'rejected' && (
+                    {s === 'disputed' && (
+                      <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                        {t('matchList.statusDisputed')}
+                      </span>
+                    )}
+                    {s === 'expired' && (
+                      <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[#2a2a2a] text-gray-500 border border-[#333]">
+                        {t('matchList.statusExpired')}
+                      </span>
+                    )}
+                    {s === 'rejected' && (
                       <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[#2a2a2a] text-gray-500 border border-[#333]">
                         {t('matchList.statusRejected')}
                       </span>
                     )}
                   </div>
                 </div>
-                {match.admin_note && match.status !== 'approved' && (
+
+                {/* Dispute reason */}
+                {s === 'disputed' && match.dispute_reason && (
+                  <p className="mt-2 text-xs text-orange-400/80 italic">
+                    {t('matchList.disputeReason', { reason: match.dispute_reason })}
+                  </p>
+                )}
+
+                {/* Admin note */}
+                {match.admin_note && !['confirmed', 'approved'].includes(s) && (
                   <p className="mt-2 text-xs text-gray-500 italic">{t('matchList.adminNote')} {match.admin_note}</p>
                 )}
               </div>
