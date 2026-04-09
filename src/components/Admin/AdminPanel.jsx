@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
-import { applyEloForMatch } from '../../lib/matchUtils'
+// ELO is now applied server-side via admin_resolve_match RPC
 
 export default function AdminPanel() {
   const { profile } = useAuth()
@@ -118,18 +118,16 @@ export default function AdminPanel() {
     setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
     setError('')
     try {
-      const result = await applyEloForMatch(match)
-      const { error: mErr } = await supabase.from('matches').update({
-        status: 'approved',
-        reviewed_by: profile.id,
-      }).eq('id', match.id)
-      if (mErr) throw mErr
-
-      const d1Str = (result.d1 >= 0 ? '+' : '') + result.d1
-      const d2Str = (result.d2 >= 0 ? '+' : '') + result.d2
+      const { data, error: rpcErr } = await supabase.rpc('admin_resolve_match', {
+        p_match_id: match.id, p_action: 'approve',
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
+      const d1Str = (data.d1 >= 0 ? '+' : '') + data.d1
+      const d2Str = (data.d2 >= 0 ? '+' : '') + data.d2
       showSuccess(t('admin.matches.approveSuccess', {
-        t1: result.t1Avg, n1: result.newT1Avg, d1: d1Str,
-        t2: result.t2Avg, n2: result.newT2Avg, d2: d2Str,
+        t1: data.t1_avg, n1: data.new_t1_avg, d1: d1Str,
+        t2: data.t2_avg, n2: data.new_t2_avg, d2: d2Str,
       }))
       fetchMatches()
     } catch (err) { setError(err.message) }
@@ -139,10 +137,11 @@ export default function AdminPanel() {
   async function rejectMatch(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'rejecting' }))
     try {
-      const { error } = await supabase.from('matches').update({
-        status: 'rejected', reviewed_by: profile.id,
-      }).eq('id', match.id)
-      if (error) throw error
+      const { data, error: rpcErr } = await supabase.rpc('admin_resolve_match', {
+        p_match_id: match.id, p_action: 'reject',
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
       showSuccess(t('admin.matches.rejectSuccess'))
       fetchMatches()
     } catch (err) { setError(err.message) }
@@ -155,18 +154,16 @@ export default function AdminPanel() {
     setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
     setError('')
     try {
-      const result = await applyEloForMatch(match)
-      const { error: mErr } = await supabase.from('matches').update({
-        status: 'approved',
-        reviewed_by: profile.id,
-      }).eq('id', match.id)
-      if (mErr) throw mErr
-
-      const d1Str = (result.d1 >= 0 ? '+' : '') + result.d1
-      const d2Str = (result.d2 >= 0 ? '+' : '') + result.d2
+      const { data, error: rpcErr } = await supabase.rpc('admin_resolve_match', {
+        p_match_id: match.id, p_action: 'approve',
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
+      const d1Str = (data.d1 >= 0 ? '+' : '') + data.d1
+      const d2Str = (data.d2 >= 0 ? '+' : '') + data.d2
       showSuccess(t('admin.disputed.approveSuccess', {
-        t1: result.t1Avg, n1: result.newT1Avg, d1: d1Str,
-        t2: result.t2Avg, n2: result.newT2Avg, d2: d2Str,
+        t1: data.t1_avg, n1: data.new_t1_avg, d1: d1Str,
+        t2: data.t2_avg, n2: data.new_t2_avg, d2: d2Str,
       }))
       fetchDisputes()
     } catch (err) { setError(err.message) }
@@ -176,10 +173,11 @@ export default function AdminPanel() {
   async function rejectDispute(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'rejecting' }))
     try {
-      const { error } = await supabase.from('matches').update({
-        status: 'rejected', reviewed_by: profile.id,
-      }).eq('id', match.id)
-      if (error) throw error
+      const { data, error: rpcErr } = await supabase.rpc('admin_resolve_match', {
+        p_match_id: match.id, p_action: 'reject',
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
       showSuccess(t('admin.disputed.rejectSuccess'))
       fetchDisputes()
     } catch (err) { setError(err.message) }
@@ -233,7 +231,7 @@ export default function AdminPanel() {
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="text-xs text-gray-500">#{match.id?.slice(0, 8)}</span>
+              <span className="text-xs text-gray-500">#{match.id}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.cls}`}>{status.text}</span>
               <span className="text-xs text-gray-500">{match.match_type?.toUpperCase()}</span>
               <span className="text-xs text-gray-600">{formatDate(match.played_at)}</span>

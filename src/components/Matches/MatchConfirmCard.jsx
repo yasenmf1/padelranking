@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useLanguage } from '../../context/LanguageContext'
-import { applyEloForMatch } from '../../lib/matchUtils'
 
 function formatSets(setsData, flip = false) {
   if (!setsData || !Array.isArray(setsData)) return '-'
@@ -19,12 +18,9 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
   const [successData, setSuccessData] = useState(null)
   const [error, setError] = useState('')
 
-  // Who is on which team
-  const isTeam2 = match.player3_id === profile.id || match.player4_id === profile.id
+  // player1+player2 = submitter's team, player3+player4 = opponent team (us)
   const submitterTeam = [match.player1, match.player2].filter(Boolean)
-  const myTeamPlayers = isTeam2
-    ? [match.player3, match.player4].filter(Boolean)
-    : [match.player1, match.player2].filter(Boolean)
+  const myTeamPlayers = [match.player3, match.player4].filter(Boolean)
 
   // Time remaining until expiry
   const expiresAt = match.expires_at ? new Date(match.expires_at) : null
@@ -33,41 +29,31 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
   const minsLeft = msLeft !== null ? Math.max(0, Math.floor((msLeft % 3600000) / 60000)) : null
   const isUrgent = msLeft !== null && msLeft < 2 * 3600000 && msLeft > 0
 
-  // Sets from my team's perspective
-  const myFlip = isTeam2
-  const setsDisplay = formatSets(match.sets_data, myFlip)
+  // Sets from my team's perspective (flip: we're team2, sets stored as p1/p2 for team1/team2)
+  const setsDisplay = formatSets(match.sets_data, true)
 
-  // Determine if my team won (from my perspective)
-  let myTeamWon = null
-  if (match.winner_id) {
-    if (isTeam2) {
-      myTeamWon = match.winner_id === match.player3_id || match.winner_id === match.player4_id
-    } else {
-      myTeamWon = match.winner_id === match.player1_id || match.winner_id === match.player2_id
-    }
-  }
+  // Did my team win? winner_id is the submitter's team captain (player1_id) if they won
+  const myTeamWon = match.winner_id
+    ? (match.winner_id === match.player3_id || match.winner_id === match.player4_id)
+    : null
 
+  // ── Confirm via DB function ────────────────────────────────────────────
   async function handleConfirm() {
     setStep('loading')
     setError('')
     try {
-      // Apply ELO changes first
-      const result = await applyEloForMatch(match)
+      const { data, error: rpcErr } = await supabase.rpc('confirm_match', {
+        p_match_id: match.id,
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
 
-      // Mark match as confirmed
-      const { error: cErr } = await supabase.from('matches').update({
-        status: 'confirmed',
-        confirmed_by: profile.id,
-        confirmed_at: new Date().toISOString(),
-      }).eq('id', match.id)
-      if (cErr) throw cErr
-
-      // Compute my ELO change
+      // My ELO change
       const ratingMap = {
-        [match.player1_id]: { old: match.player1_rating_before || 500, new: result.newR.p1 },
-        [match.player2_id]: { old: match.player2_rating_before || 500, new: result.newR.p2 },
-        [match.player3_id]: { old: match.player3_rating_before || 500, new: result.newR.p3 },
-        [match.player4_id]: { old: match.player4_rating_before || 500, new: result.newR.p4 },
+        [match.player1_id]: { old: match.player1_rating_before || 500, new: data.p1_new },
+        [match.player2_id]: { old: match.player2_rating_before || 500, new: data.p2_new },
+        [match.player3_id]: { old: match.player3_rating_before || 500, new: data.p3_new },
+        [match.player4_id]: { old: match.player4_rating_before || 500, new: data.p4_new },
       }
       const myRatings = ratingMap[profile.id]
       const newElo = myRatings?.new ?? 500
@@ -82,17 +68,18 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
     }
   }
 
+  // ── Dispute via DB function ────────────────────────────────────────────
   async function handleDispute() {
     if (!reason.trim()) return
     setStep('loading')
     setError('')
     try {
-      const { error: dErr } = await supabase.from('matches').update({
-        status: 'disputed',
-        disputed_by: profile.id,
-        dispute_reason: reason.trim(),
-      }).eq('id', match.id)
-      if (dErr) throw dErr
+      const { data, error: rpcErr } = await supabase.rpc('dispute_match', {
+        p_match_id: match.id,
+        p_reason:   reason.trim(),
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
       onDone?.()
     } catch (err) {
       setError(err.message || t('common.error'))
@@ -100,7 +87,7 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
     }
   }
 
-  // ── Success state ──────────────────────────────────────
+  // ── Success state ──────────────────────────────────────────────────────
   if (step === 'success' && successData) {
     return (
       <div className="p-5 rounded-xl border border-[#CCFF00]/50 bg-[#CCFF00]/10 text-center space-y-3">
@@ -117,12 +104,12 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
     )
   }
 
-  // ── Main card ──────────────────────────────────────────
+  // ── Main card ──────────────────────────────────────────────────────────
   return (
     <div className={`rounded-xl border p-4 space-y-4 transition-colors ${
       step === 'loading' ? 'opacity-60' : 'border-yellow-500/30 bg-yellow-500/5'
     }`}>
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <span className="text-xs font-semibold text-yellow-400 bg-yellow-500/20 px-2.5 py-1 rounded-full">
@@ -130,14 +117,20 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
           </span>
           {hoursLeft !== null && (
             <p className={`text-xs ${isUrgent ? 'text-red-400 font-semibold' : 'text-gray-500'}`}>
-              {isUrgent ? t('confirmSection.urgentExpiry') : t('confirmSection.expiresIn', { h: hoursLeft, m: minsLeft })}
+              {isUrgent
+                ? t('confirmSection.urgentExpiry')
+                : t('confirmSection.expiresIn', { h: hoursLeft, m: minsLeft })}
             </p>
           )}
-          <p className="text-xs text-gray-600">{formatDate(match.played_at)} · {match.match_type?.toUpperCase()}</p>
+          <p className="text-xs text-gray-600">
+            {formatDate(match.played_at)} · {match.match_type?.toUpperCase()}
+          </p>
           {match.clubs && <p className="text-xs text-gray-600">{match.clubs.name}</p>}
         </div>
         <div className="text-right flex-shrink-0">
-          <p className={`font-mono font-black text-lg ${myTeamWon ? 'text-[#CCFF00]' : myTeamWon === false ? 'text-red-400' : 'text-white'}`}>
+          <p className={`font-mono font-black text-lg ${
+            myTeamWon === true ? 'text-[#CCFF00]' : myTeamWon === false ? 'text-red-400' : 'text-white'
+          }`}>
             {setsDisplay}
           </p>
           {myTeamWon !== null && (
@@ -167,7 +160,7 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
 
       {/* Error */}
       {step === 'error' && error && (
-        <p className="text-red-400 text-xs p-2 bg-red-500/10 rounded-lg">{error}</p>
+        <p className="text-red-400 text-xs p-2 bg-red-500/10 rounded-lg border border-red-500/20">{error}</p>
       )}
 
       {/* Dispute form */}
@@ -188,9 +181,7 @@ export default function MatchConfirmCard({ match, profile, onDone }) {
               disabled={!reason.trim()}
               className="flex-1 py-2.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {step === 'loading'
-                ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                : t('confirmSection.disputeSubmit')}
+              {t('confirmSection.disputeSubmit')}
             </button>
             <button
               onClick={() => { setStep('idle'); setReason('') }}
