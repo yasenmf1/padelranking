@@ -17,6 +17,7 @@ export default function Navbar() {
     { to: '/', label: t('nav.home') },
     { to: '/ladder', label: t('nav.ladder') },
     { to: '/matches', label: t('nav.matches') },
+    { to: '/matchmaking', label: '🎾 Търся мач', highlight: true },
   ]
 
   async function handleLogout() {
@@ -55,8 +56,12 @@ export default function Navbar() {
                 to={link.to}
                 className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                   location.pathname === link.to
-                    ? 'text-[#CCFF00] bg-[#CCFF00]/10'
-                    : 'text-gray-400 hover:text-white hover:bg-[#1e1e1e]'
+                    ? link.highlight
+                      ? 'bg-[#CCFF00] text-black'
+                      : 'text-[#CCFF00] bg-[#CCFF00]/10'
+                    : link.highlight
+                      ? 'bg-[#CCFF00]/10 text-[#CCFF00] hover:bg-[#CCFF00]/20'
+                      : 'text-gray-400 hover:text-white hover:bg-[#1e1e1e]'
                 }`}
               >
                 {link.label}
@@ -157,8 +162,8 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
                 className={`block px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
                   location.pathname === link.to
-                    ? 'text-[#CCFF00] bg-[#CCFF00]/10'
-                    : 'text-gray-400 hover:text-white hover:bg-[#1e1e1e]'
+                    ? link.highlight ? 'bg-[#CCFF00] text-black' : 'text-[#CCFF00] bg-[#CCFF00]/10'
+                    : link.highlight ? 'text-[#CCFF00] bg-[#CCFF00]/5 hover:bg-[#CCFF00]/10' : 'text-gray-400 hover:text-white hover:bg-[#1e1e1e]'
                 }`}
               >
                 {link.label}

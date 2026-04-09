@@ -13,6 +13,7 @@ import Profile from './components/Profile/Profile'
 import AdminPanel from './components/Admin/AdminPanel'
 import SplashScreen from './components/Onboarding/SplashScreen'
 import InstallBanner from './components/PWA/InstallBanner'
+import MatchmakingPage from './components/Matchmaking/MatchmakingPage'
 
 const Spinner = () => (
   <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -148,6 +149,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <SelfAssessment />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/matchmaking"
+          element={
+            <ProtectedRoute>
+              <MatchmakingPage />
             </ProtectedRoute>
           }
         />
