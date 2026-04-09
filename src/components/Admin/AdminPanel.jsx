@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 // ELO is now applied server-side via admin_resolve_match RPC
+
+const CITIES_BG = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград']
 
 export default function AdminPanel() {
   const { profile } = useAuth()
@@ -19,6 +21,13 @@ export default function AdminPanel() {
   const [success, setSuccess] = useState('')
   const [broadcastMsg, setBroadcastMsg] = useState('')
   const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [broadcastTarget, setBroadcastTarget] = useState('all') // 'all' | 'city' | 'player'
+  const [broadcastCity, setBroadcastCity] = useState('София')
+  const [broadcastPlayerId, setBroadcastPlayerId] = useState('')
+  const [broadcastPlayers, setBroadcastPlayers] = useState([])
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [showPlayerList, setShowPlayerList] = useState(false)
+  const playerSearchRef = useRef(null)
   const [playerMessages, setPlayerMessages] = useState({}) // { [matchId]: text }
   const [playerMsgLoading, setPlayerMsgLoading] = useState({}) // { [matchId]: bool }
 
@@ -42,7 +51,7 @@ export default function AdminPanel() {
     if (activeTab === 'players')  fetchPlayers()
     else if (activeTab === 'matches')  fetchMatches()
     else if (activeTab === 'disputed') fetchDisputes()
-    else if (activeTab === 'messages') fetchMessages()
+    else if (activeTab === 'messages') { fetchMessages(); fetchBroadcastPlayers() }
   }, [activeTab])
 
   useEffect(() => {
@@ -91,6 +100,14 @@ export default function AdminPanel() {
       if (data) setDisputes(data)
     } catch { setError(t('admin.players.errorLoad')) }
     finally { setLoading(false) }
+  }
+
+  async function fetchBroadcastPlayers() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, clubs(city)')
+      .order('full_name')
+    if (data) setBroadcastPlayers(data)
   }
 
   async function fetchMessages() {
@@ -191,14 +208,32 @@ export default function AdminPanel() {
   // ── Broadcast ──────────────────────────────────────────
   async function sendBroadcast() {
     if (!broadcastMsg.trim()) return
+    if (broadcastTarget === 'player' && !broadcastPlayerId) { setError('Избери играч'); return }
     setBroadcastLoading(true)
     setError('')
     try {
-      const { data, error: rpcErr } = await supabase.rpc('admin_broadcast_notification', {
-        p_message: broadcastMsg.trim(),
-      })
-      if (rpcErr) throw rpcErr
-      showSuccess(`Съобщението е изпратено до ${data} играча.`)
+      if (broadcastTarget === 'all') {
+        const { data, error: rpcErr } = await supabase.rpc('admin_broadcast_notification', {
+          p_message: broadcastMsg.trim(),
+        })
+        if (rpcErr) throw rpcErr
+        showSuccess(`Съобщението е изпратено до ${data} играча.`)
+      } else if (broadcastTarget === 'city') {
+        const cityPlayers = broadcastPlayers.filter(p => p.clubs?.city === broadcastCity)
+        if (cityPlayers.length === 0) { showSuccess(`Няма играчи от ${broadcastCity}.`); return }
+        for (const p of cityPlayers) {
+          await supabase.rpc('admin_send_notification', { p_user_id: p.id, p_message: broadcastMsg.trim() })
+        }
+        showSuccess(`Съобщението е изпратено до ${cityPlayers.length} играча от ${broadcastCity}.`)
+      } else if (broadcastTarget === 'player') {
+        const { error: rpcErr } = await supabase.rpc('admin_send_notification', {
+          p_user_id: broadcastPlayerId,
+          p_message: broadcastMsg.trim(),
+        })
+        if (rpcErr) throw rpcErr
+        const name = broadcastPlayers.find(p => p.id === broadcastPlayerId)?.full_name || 'играча'
+        showSuccess(`Съобщението е изпратено до ${name}.`)
+      }
       setBroadcastMsg('')
     } catch (err) { setError(err.message) }
     finally { setBroadcastLoading(false) }
@@ -532,26 +567,144 @@ export default function AdminPanel() {
       {activeTab === 'messages' && (
         <div className="space-y-4">
           {/* Broadcast section */}
-          <div className="card border-[#CCFF00]/20 bg-[#CCFF00]/5 space-y-3">
+          <div className="card border-[#CCFF00]/20 bg-[#CCFF00]/5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="text-lg">📢</span>
-              <h3 className="text-sm font-bold text-white">Изпрати до всички играчи</h3>
+              <h3 className="text-sm font-bold text-white">Изпрати известие</h3>
             </div>
+
+            {/* Target selector */}
+            <div className="space-y-2">
+              {/* All players */}
+              <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                broadcastTarget === 'all' ? 'border-[#CCFF00]/40 bg-[#CCFF00]/5' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+              }`}>
+                <input type="radio" name="bTarget" value="all"
+                  checked={broadcastTarget === 'all'}
+                  onChange={() => setBroadcastTarget('all')}
+                  className="accent-[#CCFF00]" />
+                <span className="text-lg">🌍</span>
+                <span className={`text-sm font-medium ${broadcastTarget === 'all' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                  До всички играчи
+                </span>
+              </label>
+
+              {/* By city */}
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                broadcastTarget === 'city' ? 'border-[#CCFF00]/40 bg-[#CCFF00]/5' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+              }`}>
+                <input type="radio" name="bTarget" value="city"
+                  checked={broadcastTarget === 'city'}
+                  onChange={() => setBroadcastTarget('city')}
+                  className="accent-[#CCFF00] mt-0.5" />
+                <span className="text-lg">📍</span>
+                <div className="flex-1">
+                  <span className={`text-sm font-medium ${broadcastTarget === 'city' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                    До играчи от град
+                  </span>
+                  {broadcastTarget === 'city' && (
+                    <select
+                      value={broadcastCity}
+                      onChange={e => { e.stopPropagation(); setBroadcastCity(e.target.value) }}
+                      onClick={e => e.stopPropagation()}
+                      className="input-dark mt-2 text-sm"
+                    >
+                      {CITIES_BG.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  )}
+                </div>
+              </label>
+
+              {/* Specific player */}
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                broadcastTarget === 'player' ? 'border-[#CCFF00]/40 bg-[#CCFF00]/5' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+              }`}>
+                <input type="radio" name="bTarget" value="player"
+                  checked={broadcastTarget === 'player'}
+                  onChange={() => setBroadcastTarget('player')}
+                  className="accent-[#CCFF00] mt-0.5" />
+                <span className="text-lg">👤</span>
+                <div className="flex-1 relative" ref={playerSearchRef}>
+                  <span className={`text-sm font-medium ${broadcastTarget === 'player' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                    До конкретен играч
+                  </span>
+                  {broadcastTarget === 'player' && (
+                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                      {broadcastPlayerId ? (
+                        <div className="flex items-center justify-between p-2 bg-[#1a1a1a] rounded-lg border border-[#CCFF00]/30">
+                          <span className="text-sm text-white font-medium">
+                            {broadcastPlayers.find(p => p.id === broadcastPlayerId)?.full_name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => { setBroadcastPlayerId(''); setPlayerSearch('') }}
+                            className="text-gray-500 hover:text-white text-xs ml-2"
+                          >✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={playerSearch}
+                            onChange={e => { setPlayerSearch(e.target.value); setShowPlayerList(true) }}
+                            onFocus={() => setShowPlayerList(true)}
+                            className="input-dark text-sm"
+                            placeholder="Търси по име..."
+                          />
+                          {showPlayerList && playerSearch && (
+                            <div className="absolute z-10 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-xl">
+                              {broadcastPlayers
+                                .filter(p =>
+                                  p.full_name?.toLowerCase().includes(playerSearch.toLowerCase()) ||
+                                  p.username?.toLowerCase().includes(playerSearch.toLowerCase())
+                                )
+                                .slice(0, 10)
+                                .map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => { setBroadcastPlayerId(p.id); setPlayerSearch(''); setShowPlayerList(false) }}
+                                    className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] transition-colors"
+                                  >
+                                    <span className="text-white text-sm">{p.full_name}</span>
+                                    <span className="text-gray-500 text-xs ml-2">@{p.username}</span>
+                                  </button>
+                                ))}
+                              {broadcastPlayers.filter(p =>
+                                p.full_name?.toLowerCase().includes(playerSearch.toLowerCase()) ||
+                                p.username?.toLowerCase().includes(playerSearch.toLowerCase())
+                              ).length === 0 && (
+                                <p className="px-3 py-2 text-gray-500 text-sm">Няма резултати</p>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+
             <textarea
               value={broadcastMsg}
               onChange={e => setBroadcastMsg(e.target.value)}
               className="input-dark resize-none w-full text-sm"
               rows={3}
-              placeholder="Въведи съобщение до всички регистрирани играчи..."
+              placeholder="Въведи съобщение..."
             />
             <button
               onClick={sendBroadcast}
-              disabled={broadcastLoading || !broadcastMsg.trim()}
+              disabled={broadcastLoading || !broadcastMsg.trim() || (broadcastTarget === 'player' && !broadcastPlayerId)}
               className="px-4 py-2.5 bg-[#CCFF00] text-black text-sm font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {broadcastLoading
                 ? <><div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />Изпращане...</>
-                : '📢 Изпрати до всички'}
+                : broadcastTarget === 'city'
+                  ? `📍 Изпрати до ${broadcastCity}`
+                  : broadcastTarget === 'player' && broadcastPlayerId
+                    ? `👤 Изпрати до ${broadcastPlayers.find(p => p.id === broadcastPlayerId)?.full_name || '...'}`
+                    : '📢 Изпрати до всички'}
             </button>
           </div>
 
