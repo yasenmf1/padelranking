@@ -17,7 +17,6 @@ export default function Navbar() {
     { to: '/', label: t('nav.home') },
     { to: '/ladder', label: t('nav.ladder') },
     { to: '/matches', label: t('nav.matches') },
-    { to: '/matchmaking', label: '🎾 Търся мач', highlight: true },
   ]
 
   async function handleLogout() {
@@ -93,6 +92,18 @@ export default function Navbar() {
             >
               🏆 <span className="hidden lg:inline">{t('nav.tournaments')}</span>
             </a>
+
+            {/* Matchmaking */}
+            <Link
+              to="/matchmaking"
+              className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 ${
+                location.pathname === '/matchmaking'
+                  ? 'bg-[#CCFF00] text-black'
+                  : 'bg-[#CCFF00]/10 text-[#CCFF00] hover:bg-[#CCFF00]/20'
+              }`}
+            >
+              🎾 <span>Търся мач</span>
+            </Link>
 
             {/* Language switcher */}
             <button
@@ -178,6 +189,17 @@ export default function Navbar() {
                 {t('nav.admin')}
               </Link>
             )}
+            <Link
+              to="/matchmaking"
+              onClick={() => setMenuOpen(false)}
+              className={`block px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
+                location.pathname === '/matchmaking'
+                  ? 'bg-[#CCFF00] text-black'
+                  : 'text-[#CCFF00] bg-[#CCFF00]/5 hover:bg-[#CCFF00]/10'
+              }`}
+            >
+              🎾 Търся мач
+            </Link>
             <a
               href={BG_PADEL_TOUR_URL}
               target="_blank"
