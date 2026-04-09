@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 
-const CITIES = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград', 'Друг']
+const CITIES = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград']
 
 const TIMES = (() => {
   const slots = []
@@ -44,22 +44,33 @@ function leagueIcon(league) {
 // ── Form ──────────────────────────────────────────────────────────────────
 function MatchmakingForm({ onPublished }) {
   const { profile } = useAuth()
+  const isAdmin = profile?.is_admin === true
+
   const [form, setForm] = useState({
     city: 'София', club: '', date: new Date().toISOString().split('T')[0],
     time: '10:00', players_needed: 3,
   })
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [step,         setStep]         = useState('form') // 'form' | 'notify'
+  const [notifyTarget, setNotifyTarget] = useState('same') // 'same' | 'other' | 'all'
+  const [notifyCity,   setNotifyCity]   = useState('София')
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
 
   function set(field, val) { setForm(p => ({ ...p, [field]: val })) }
 
-  async function handleSubmit(e) {
+  function handleContinue(e) {
     e.preventDefault()
     if (!form.club.trim()) { setError('Въведи клуб/корт'); return }
+    setError('')
+    setNotifyCity(form.city)
+    setNotifyTarget('same')
+    setStep('notify')
+  }
+
+  async function handlePublish() {
     setLoading(true)
     setError('')
     try {
-      // expires_at = selected date + time + 2 hours
       const dt = new Date(`${form.date}T${form.time}:00`)
       dt.setHours(dt.getHours() + 2)
 
@@ -75,10 +86,13 @@ function MatchmakingForm({ onPublished }) {
       })
       if (insertErr) throw insertErr
 
-      // Trigger push notification to same city (non-blocking)
+      const pushCity = notifyTarget === 'all' ? null
+                     : notifyTarget === 'other' ? notifyCity
+                     : form.city
+
       supabase.functions.invoke('send-push-notification', {
         body: {
-          city:  form.city,
+          city:  pushCity,
           title: '🎾 Нова заявка за мач!',
           body:  `${profile.full_name?.split(' ')[0]} търси мач в ${form.club} в ${form.time}`,
           url:   '/matchmaking',
@@ -88,13 +102,118 @@ function MatchmakingForm({ onPublished }) {
       onPublished?.()
     } catch (err) {
       setError(err.message)
+      setStep('form')
     } finally {
       setLoading(false)
     }
   }
 
+  // ── Step 2: notification target ─────────────────────────────────────────
+  if (step === 'notify') {
+    return (
+      <div className="card space-y-5">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setStep('form')}
+            className="text-gray-500 hover:text-white transition-colors text-sm"
+          >
+            ← Назад
+          </button>
+          <h2 className="text-lg font-bold text-white">📢 Извести играчи</h2>
+        </div>
+
+        <p className="text-gray-400 text-sm">До кой град да изпратим нотификацията?</p>
+
+        <div className="space-y-2">
+          {/* Same city */}
+          <button
+            onClick={() => setNotifyTarget('same')}
+            className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-colors text-left ${
+              notifyTarget === 'same'
+                ? 'border-[#CCFF00]/50 bg-[#CCFF00]/10'
+                : 'border-[#2a2a2a] bg-[#111111] hover:border-[#3a3a3a]'
+            }`}
+          >
+            <span className="text-xl">📍</span>
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${notifyTarget === 'same' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                Същия град
+              </p>
+              <p className="text-gray-500 text-xs">{form.city}</p>
+            </div>
+            {notifyTarget === 'same' && <span className="text-[#CCFF00] font-bold">✓</span>}
+          </button>
+
+          {/* Specific other city */}
+          <button
+            onClick={() => setNotifyTarget('other')}
+            className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-colors text-left ${
+              notifyTarget === 'other'
+                ? 'border-[#CCFF00]/50 bg-[#CCFF00]/10'
+                : 'border-[#2a2a2a] bg-[#111111] hover:border-[#3a3a3a]'
+            }`}
+          >
+            <span className="text-xl">🎯</span>
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${notifyTarget === 'other' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                Избери конкретен град
+              </p>
+              {notifyTarget === 'other' && (
+                <select
+                  value={notifyCity}
+                  onChange={e => { e.stopPropagation(); setNotifyCity(e.target.value) }}
+                  onClick={e => e.stopPropagation()}
+                  className="input-dark mt-2 text-xs"
+                >
+                  {CITIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              )}
+            </div>
+            {notifyTarget === 'other' && <span className="text-[#CCFF00] font-bold self-start">✓</span>}
+          </button>
+
+          {/* All cities — admin only */}
+          {isAdmin && (
+            <button
+              onClick={() => setNotifyTarget('all')}
+              className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-colors text-left ${
+                notifyTarget === 'all'
+                  ? 'border-[#CCFF00]/50 bg-[#CCFF00]/10'
+                  : 'border-[#2a2a2a] bg-[#111111] hover:border-[#3a3a3a]'
+              }`}
+            >
+              <span className="text-xl">🌍</span>
+              <div className="flex-1">
+                <p className={`text-sm font-semibold ${notifyTarget === 'all' ? 'text-[#CCFF00]' : 'text-white'}`}>
+                  Всички градове
+                </p>
+                <p className="text-gray-500 text-xs">Само за администратори</p>
+              </div>
+              {notifyTarget === 'all' && <span className="text-[#CCFF00] font-bold">✓</span>}
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</p>
+        )}
+
+        <button
+          onClick={handlePublish}
+          disabled={loading}
+          className="btn-neon w-full flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {loading
+            ? <><div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />Публикуване...</>
+            : 'Публикувай и извести →'}
+        </button>
+      </div>
+    )
+  }
+
+  // ── Step 1: form ─────────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="card space-y-5">
+    <form onSubmit={handleContinue} className="card space-y-5">
       <h2 className="text-lg font-bold text-white">🎾 Публикувай заявка за мач</h2>
 
       {error && (
@@ -152,11 +271,9 @@ function MatchmakingForm({ onPublished }) {
         </div>
       </div>
 
-      <button type="submit" disabled={loading}
-        className="btn-neon w-full flex items-center justify-center gap-2 disabled:opacity-50">
-        {loading
-          ? <><div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />Публикуване...</>
-          : '📢 Публикувай'}
+      <button type="submit"
+        className="btn-neon w-full flex items-center justify-center gap-2">
+        Продължи →
       </button>
     </form>
   )
