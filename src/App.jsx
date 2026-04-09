@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Navbar from './components/Layout/Navbar'
@@ -11,6 +12,7 @@ import MatchesPage from './components/Matches/MatchesPage'
 import Profile from './components/Profile/Profile'
 import AdminPanel from './components/Admin/AdminPanel'
 import SplashScreen from './components/Onboarding/SplashScreen'
+import InstallBanner from './components/PWA/InstallBanner'
 
 const Spinner = () => (
   <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -83,10 +85,12 @@ function PublicRoute({ children }) {
 export default function App() {
   const { session, profile } = useAuth()
   const showNavbar = session && profile?.questionnaire_done
+  const [splashDone, setSplashDone] = useState(false)
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <SplashScreen />
+      <SplashScreen onDone={() => setSplashDone(true)} />
+      <InstallBanner splashDone={splashDone} />
       {showNavbar && <Navbar />}
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

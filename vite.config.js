@@ -10,9 +10,9 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Padel Ranking',
-        short_name: 'Padel Ranking',
+        short_name: 'PadelRank',
         description: 'Padel Ranking - Класация на падел играчи в България',
-        theme_color: '#0a0a0a',
+        theme_color: '#CCFF00',
         background_color: '#0a0a0a',
         display: 'standalone',
         orientation: 'portrait',

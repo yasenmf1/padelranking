@@ -20,7 +20,7 @@ const FEATURES = [
   },
 ]
 
-export default function SplashScreen() {
+export default function SplashScreen({ onDone }) {
   const [visible, setVisible]   = useState(false)
   const [fadeIn,  setFadeIn]    = useState(false)
   const [fadeOut, setFadeOut]   = useState(false)
@@ -28,10 +28,12 @@ export default function SplashScreen() {
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) {
       setVisible(true)
-      // Trigger fade-in on next frame
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setFadeIn(true))
       })
+    } else {
+      // Already visited — splash skipped, notify parent immediately
+      onDone?.()
     }
   }, [])
 
@@ -40,6 +42,7 @@ export default function SplashScreen() {
     setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, '1')
       setVisible(false)
+      onDone?.()
     }, 450)
   }
 
