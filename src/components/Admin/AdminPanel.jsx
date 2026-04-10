@@ -135,6 +135,25 @@ export default function AdminPanel() {
 
   // ── Match actions (legacy pending → approved) ──────────
 
+  // After any ELO-changing action, update players state immediately from RPC data
+  // then silently refetch in background to stay in sync
+  function applyEloToPlayers(match, data) {
+    const updates = [
+      { id: match.player1_id, rating: data.p1_new },
+      { id: match.player2_id, rating: data.p2_new },
+      { id: match.player3_id, rating: data.p3_new },
+      { id: match.player4_id, rating: data.p4_new },
+    ].filter(u => u.id && u.rating != null)
+
+    setPlayers(prev => prev.map(p => {
+      const upd = updates.find(u => u.id === p.id)
+      return upd ? { ...p, rating: upd.rating } : p
+    }))
+
+    // Background refetch to get fully accurate data (league changes etc.)
+    fetchPlayers()
+  }
+
   async function approveMatch(match) {
     setActionLoading(p => ({ ...p, [match.id]: 'approving' }))
     setError('')
@@ -151,6 +170,7 @@ export default function AdminPanel() {
         t2: data.t2_avg, n2: data.new_t2_avg, d2: d2Str,
       }))
       fetchMatches()
+      applyEloToPlayers(match, data)
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
   }
@@ -187,6 +207,7 @@ export default function AdminPanel() {
         t2: data.t2_avg, n2: data.new_t2_avg, d2: d2Str,
       }))
       fetchDisputes()
+      applyEloToPlayers(match, data)
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [match.id]: null })) }
   }
