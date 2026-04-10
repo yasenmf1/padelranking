@@ -111,6 +111,7 @@ export default function MatchForm({ onSubmitted }) {
   const [playedAt, setPlayedAt] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
@@ -174,12 +175,14 @@ export default function MatchForm({ onSubmitted }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (submittingRef.current) return  // synchronous guard against double-submit
     setError('')
     if (!allPlayersSelected) { setError(t('matchForm.errorPlayers')); return }
     const setsErr = validateSets()
     if (setsErr) { setError(setsErr); return }
     const winner = determineWinner()
     if (!winner) { setError(t('matchForm.errorNoWinner')); return }
+    submittingRef.current = true
     setSubmitting(true)
     try {
       const setsData = sets.filter(s => s.p1 !== '' && s.p2 !== '').map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
@@ -211,7 +214,10 @@ export default function MatchForm({ onSubmitted }) {
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setError(err.message || t('matchForm.errorGeneral'))
-    } finally { setSubmitting(false) }
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   const winnerPreview = allPlayersSelected ? determineWinner() : null

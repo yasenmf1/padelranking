@@ -7,6 +7,14 @@ import { getLeagueIcon, getLeagueColor } from '../../lib/elo'
 export default function Ladder() {
   const { profile } = useAuth()
   const { t } = useLanguage()
+
+  // Safe league name: tries translation, falls back to raw DB value
+  function leagueName(league) {
+    if (!league) return ''
+    const key = `leagues.${league}`
+    const translated = t(key)
+    return translated === key ? league : translated
+  }
   const [players, setPlayers] = useState([])
   const [clubs, setClubs] = useState([])
   const [selectedLeague, setSelectedLeague] = useState('all')
@@ -194,7 +202,7 @@ export default function Ladder() {
                           color: getLeagueColor(player.league),
                           border: `1px solid ${getLeagueColor(player.league)}44`
                         }}>
-                          {getLeagueIcon(player.league)} {t(`leagues.${player.league}`)}
+                          {getLeagueIcon(player.league)} {leagueName(player.league)}
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell text-center">

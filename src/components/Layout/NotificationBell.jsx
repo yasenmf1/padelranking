@@ -20,6 +20,26 @@ function typeIcon(type) {
   return '🔔'
 }
 
+// Detect garbled text (contains replacement chars or control chars) and return safe fallback
+function safeTitle(title, type) {
+  if (!title) return typeIcon(type) + ' Известие'
+  // If title contains replacement char (U+FFFD) or looks like raw bytes, use fallback
+  if (title.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(title)) {
+    if (type === 'admin') return '📢 Съобщение от администратора'
+    if (type === 'match') return '🎾 Известие за мач'
+    return '🔔 Известие'
+  }
+  return title
+}
+
+function safeMessage(message) {
+  if (!message) return ''
+  if (message.includes('\uFFFD') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(message)) {
+    return '(Съобщението не може да бъде показано)'
+  }
+  return message
+}
+
 export default function NotificationBell() {
   const { profile } = useAuth()
   const [notifications, setNotifications] = useState([])
@@ -162,10 +182,10 @@ export default function NotificationBell() {
                     <span className="text-lg flex-shrink-0 mt-0.5">{typeIcon(notif.type)}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm leading-snug ${!notif.is_read ? 'text-white font-semibold' : 'text-gray-300'}`}>
-                        {notif.title}
+                        {safeTitle(notif.title, notif.type)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5 leading-snug line-clamp-2">
-                        {notif.message}
+                        {safeMessage(notif.message)}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">{timeAgo(notif.created_at)}</p>
                     </div>
