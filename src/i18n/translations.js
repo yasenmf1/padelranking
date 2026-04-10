@@ -146,6 +146,17 @@ export const translations = {
       noPlayersHint: 'Опитайте с различни филтри',
       showing: 'Показани {filtered} от {total} ranked играчи',
       you: '(Вие)',
+      top10Title: 'Топ 10 — движение за 24ч',
+      top10AsOf: 'Към {date}',
+      top10NoData: 'Няма данни за движение',
+      playerModal: {
+        title: 'Последни мачове',
+        noMatches: 'Няма одобрени мачове',
+        partner: 'Партньор',
+        vs: 'срещу',
+        win: 'WIN',
+        loss: 'LOSS',
+      },
     },
 
     // ── Matches page ──────────────────────────────────────
@@ -670,6 +681,17 @@ export const translations = {
       noPlayersHint: 'Try different filters',
       showing: 'Showing {filtered} of {total} ranked players',
       you: '(You)',
+      top10Title: 'Top 10 — 24h movement',
+      top10AsOf: 'As of {date}',
+      top10NoData: 'No movement data',
+      playerModal: {
+        title: 'Recent matches',
+        noMatches: 'No approved matches',
+        partner: 'Partner',
+        vs: 'vs',
+        win: 'WIN',
+        loss: 'LOSS',
+      },
     },
 
     matchesPage: {

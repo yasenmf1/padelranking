@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
@@ -9,19 +9,28 @@ export default function Ladder() {
   const { profile } = useAuth()
   const { t } = useLanguage()
 
-  // Safe league name: tries translation, falls back to raw DB value
   function leagueName(league) {
     if (!league) return ''
     const key = `leagues.${league}`
     const translated = t(key)
     return translated === key ? league : translated
   }
+
   const [players, setPlayers] = useState([])
   const [clubs, setClubs] = useState([])
   const [selectedLeague, setSelectedLeague] = useState('all')
   const [selectedClub, setSelectedClub] = useState('')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Player modal
+  const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [playerMatches, setPlayerMatches] = useState([])
+  const [playerMatchesLoading, setPlayerMatchesLoading] = useState(false)
+
+  // Top 10 movement
+  const [top10Movement, setTop10Movement] = useState([])
+  const [top10Loading, setTop10Loading] = useState(false)
 
   const LEAGUE_TABS = [
     { key: 'all', label: t('ladder.tabs.all') },
@@ -64,6 +73,122 @@ export default function Ladder() {
     return leagueMatch && clubMatch && searchMatch
   })
 
+  // ── Top 10 movement ────────────────────────────────────────────────────────
+  const fetchTop10Movement = useCallback(async (top10Players) => {
+    if (!top10Players.length) { setTop10Movement([]); return }
+    setTop10Loading(true)
+    const ids = top10Players.map(p => p.id)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+    const { data: history } = await supabase
+      .from('rankings_history')
+      .select('player_id, rating, created_at')
+      .in('player_id', ids)
+      .lt('created_at', yesterday)
+      .order('created_at', { ascending: false })
+
+    // For each player take their most recent entry before 24h ago
+    const latestByPlayer = {}
+    for (const h of history || []) {
+      if (!latestByPlayer[h.player_id]) {
+        latestByPlayer[h.player_id] = h.rating
+      }
+    }
+
+    setTop10Movement(
+      top10Players.map(p => ({
+        player: p,
+        delta: latestByPlayer[p.id] != null ? p.rating - latestByPlayer[p.id] : null,
+      }))
+    )
+    setTop10Loading(false)
+  }, [])
+
+  useEffect(() => {
+    const top10 = filtered.slice(0, 10)
+    fetchTop10Movement(top10)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players, selectedLeague, selectedClub, searchQuery])
+
+  // ── Player modal ───────────────────────────────────────────────────────────
+  async function handlePlayerClick(player) {
+    setSelectedPlayer(player)
+    setPlayerMatchesLoading(true)
+    setPlayerMatches([])
+
+    const { data: matches } = await supabase
+      .from('matches')
+      .select(`
+        id, played_at, sets_data, match_type,
+        player1_id, player2_id, player3_id, player4_id,
+        player1_rating_before, player1_rating_after,
+        player2_rating_before, player2_rating_after,
+        player3_rating_before, player3_rating_after,
+        player4_rating_before, player4_rating_after
+      `)
+      .eq('status', 'approved')
+      .or(`player1_id.eq.${player.id},player2_id.eq.${player.id},player3_id.eq.${player.id},player4_id.eq.${player.id}`)
+      .order('played_at', { ascending: false })
+      .limit(5)
+
+    if (matches?.length) {
+      const allIds = [...new Set(
+        matches.flatMap(m => [m.player1_id, m.player2_id, m.player3_id, m.player4_id].filter(Boolean))
+      )]
+      const { data: profiles } = await supabase
+        .from('profiles').select('id, full_name, username').in('id', allIds)
+      const pm = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+
+      const enriched = matches.map(m => {
+        const slot =
+          m.player1_id === player.id ? 1 :
+          m.player2_id === player.id ? 2 :
+          m.player3_id === player.id ? 3 : 4
+        const isTeam1 = slot === 1 || slot === 2
+
+        const partnerId = slot === 1 ? m.player2_id : slot === 2 ? m.player1_id :
+                          slot === 3 ? m.player4_id : m.player3_id
+        const opp1Id = isTeam1 ? m.player3_id : m.player1_id
+        const opp2Id = isTeam1 ? m.player4_id : m.player2_id
+
+        const sets = m.sets_data || []
+        let t1Sets = 0, t2Sets = 0
+        for (const s of sets) {
+          if (s.p1 > s.p2) t1Sets++
+          else if (s.p2 > s.p1) t2Sets++
+        }
+        const myTeamWon = isTeam1 ? t1Sets > t2Sets : t2Sets > t1Sets
+        const myScore = isTeam1 ? t1Sets : t2Sets
+        const oppScore = isTeam1 ? t2Sets : t1Sets
+
+        const rBefore = m[`player${slot}_rating_before`]
+        const rAfter  = m[`player${slot}_rating_after`]
+        const eloDelta = rBefore != null && rAfter != null ? rAfter - rBefore : null
+
+        const setsStr = sets.map(s => isTeam1 ? `${s.p1}-${s.p2}` : `${s.p2}-${s.p1}`).join(', ')
+
+        return {
+          id: m.id,
+          playedAt: m.played_at,
+          partner: pm[partnerId],
+          opp1: pm[opp1Id],
+          opp2: pm[opp2Id],
+          won: myTeamWon,
+          score: `${myScore}-${oppScore}`,
+          setsStr,
+          eloDelta,
+        }
+      })
+      setPlayerMatches(enriched)
+    }
+    setPlayerMatchesLoading(false)
+  }
+
+  function closeModal() {
+    setSelectedPlayer(null)
+    setPlayerMatches([])
+  }
+
   function getRankColor(rank) {
     if (rank === 1) return 'text-[#ffd700]'
     if (rank === 2) return 'text-[#c0c0c0]'
@@ -79,6 +204,8 @@ export default function Ladder() {
   }
 
   const hasFilters = selectedLeague !== 'all' || selectedClub || searchQuery
+
+  const todayStr = new Date().toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -133,6 +260,47 @@ export default function Ladder() {
         )}
       </div>
 
+      {/* Top 10 movement */}
+      {!loading && filtered.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white">{t('ladder.top10Title')}</h2>
+            <span className="text-xs text-gray-500">{t('ladder.top10AsOf', { date: todayStr })}</span>
+          </div>
+          {top10Loading ? (
+            <div className="flex justify-center py-4">
+              <div className="w-5 h-5 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {top10Movement.map(({ player, delta }, i) => {
+                const globalRank = players.indexOf(player) + 1
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => handlePlayerClick(player)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a1a1a] hover:bg-[#222] transition-colors text-left"
+                  >
+                    <span className={`text-xs font-bold w-6 flex-shrink-0 ${getRankColor(globalRank)}`}>
+                      #{globalRank}
+                    </span>
+                    <span className="text-sm text-white truncate flex-1">{player.full_name}</span>
+                    <span className="text-sm font-bold text-[#CCFF00] flex-shrink-0">{player.rating}</span>
+                    {delta === null || delta === 0 ? (
+                      <span className="text-xs text-gray-500 w-12 text-right flex-shrink-0">—</span>
+                    ) : delta > 0 ? (
+                      <span className="text-xs font-semibold text-green-400 w-12 text-right flex-shrink-0">↑+{delta}</span>
+                    ) : (
+                      <span className="text-xs font-semibold text-red-400 w-12 text-right flex-shrink-0">↓{delta}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
@@ -166,9 +334,10 @@ export default function Ladder() {
                   return (
                     <tr
                       key={player.id}
-                      className={`border-b border-[#1a1a1a] transition-colors ${
+                      onClick={() => handlePlayerClick(player)}
+                      className={`border-b border-[#1a1a1a] transition-colors cursor-pointer ${
                         isCurrentUser
-                          ? 'bg-[#CCFF00]/5 border-[#CCFF00]/20'
+                          ? 'bg-[#CCFF00]/5 border-[#CCFF00]/20 hover:bg-[#CCFF00]/10'
                           : `hover:bg-[#222] ${getRankBg(globalRank)}`
                       }`}
                     >
@@ -221,6 +390,113 @@ export default function Ladder() {
       <p className="text-xs text-gray-600 text-center">
         {t('ladder.showing', { filtered: filtered.length, total: players.length })}
       </p>
+
+      {/* Player modal */}
+      {selectedPlayer && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-[#141414] border border-[#2a2a2a] rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
+                  {selectedPlayer.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                </div>
+                <div>
+                  <p className="font-semibold text-white">{selectedPlayer.full_name}</p>
+                  <p className="text-xs text-gray-500">
+                    <span className="text-[#CCFF00] font-bold">{selectedPlayer.rating}</span>
+                    {' '}·{' '}
+                    {leagueName(selectedPlayer.league)}
+                    {' '}·{' '}
+                    {selectedPlayer.approved_matches || 0} {t('ladder.columns.matches').toLowerCase()}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-gray-500 hover:text-white transition-colors text-xl leading-none p-1"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="overflow-y-auto flex-1 px-5 py-4">
+              <p className="text-xs text-gray-500 uppercase font-semibold mb-3">{t('ladder.playerModal.title')}</p>
+
+              {playerMatchesLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : playerMatches.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">{t('ladder.playerModal.noMatches')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {playerMatches.map(m => (
+                    <div
+                      key={m.id}
+                      className={`rounded-xl p-3.5 border ${
+                        m.won
+                          ? 'bg-green-500/5 border-green-500/20'
+                          : 'bg-red-500/5 border-red-500/20'
+                      }`}
+                    >
+                      {/* Top row: date + win/loss badge + elo */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-500">
+                          {new Date(m.playedAt).toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {m.eloDelta !== null && (
+                            <span className={`text-xs font-semibold ${m.eloDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {m.eloDelta >= 0 ? `↑+${m.eloDelta}` : `↓${m.eloDelta}`}
+                            </span>
+                          )}
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            m.won ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {m.won ? t('ladder.playerModal.win') : t('ladder.playerModal.loss')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Score */}
+                      <div className="flex items-baseline gap-2 mb-1.5">
+                        <span className={`text-2xl font-bold ${m.won ? 'text-green-400' : 'text-red-400'}`}>
+                          {m.score}
+                        </span>
+                        {m.setsStr && (
+                          <span className="text-xs text-gray-500">({m.setsStr})</span>
+                        )}
+                      </div>
+
+                      {/* Players */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="text-gray-500 w-16 flex-shrink-0">{t('ladder.playerModal.partner')}:</span>
+                          <span className="text-white">{m.partner?.full_name || '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="text-gray-500 w-16 flex-shrink-0">{t('ladder.playerModal.vs')}:</span>
+                          <span className="text-gray-300">
+                            {m.opp1?.full_name || '—'} &amp; {m.opp2?.full_name || '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
