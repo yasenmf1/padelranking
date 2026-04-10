@@ -304,6 +304,15 @@ export default function AdminPanel() {
 
   // ── Shared match card ─────────────────────────────────
 
+  function EloDelta({ before, after }) {
+    if (before == null || after == null) return null
+    const d = after - before
+    if (d === 0) return null
+    return d > 0
+      ? <span className="text-green-400 text-xs font-bold ml-1">↑+{d}</span>
+      : <span className="text-red-400 text-xs font-bold ml-1">↓{d}</span>
+  }
+
   function MatchCard({ match, actions }) {
     const status = STATUS_LABEL[match.status] || STATUS_LABEL.pending
     const setsData = match.sets_data || []
@@ -312,6 +321,7 @@ export default function AdminPanel() {
       if (s.p1 > s.p2) t1W++
       else if (s.p2 > s.p1) t2W++
     }
+    const hasElo = match.player1_rating_after != null
     return (
       <div className={`card ${match.status === 'pending' ? 'border-yellow-500/20 bg-yellow-500/5' : match.status === 'disputed' ? 'border-orange-500/20 bg-orange-500/5' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -326,8 +336,14 @@ export default function AdminPanel() {
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team1')}</p>
-                <p className="text-white text-sm font-medium leading-tight">{match.player1?.full_name}</p>
-                <p className="text-white text-sm font-medium leading-tight">{match.player2?.full_name}</p>
+                <p className="text-white text-sm font-medium leading-tight">
+                  {match.player1?.full_name}
+                  {hasElo && <EloDelta before={match.player1_rating_before} after={match.player1_rating_after} />}
+                </p>
+                <p className="text-white text-sm font-medium leading-tight">
+                  {match.player2?.full_name}
+                  {hasElo && <EloDelta before={match.player2_rating_before} after={match.player2_rating_after} />}
+                </p>
               </div>
               <div className="text-center flex-shrink-0">
                 <p className="text-[#CCFF00] font-mono font-black text-xl">{t1W} – {t2W}</p>
@@ -335,8 +351,14 @@ export default function AdminPanel() {
               </div>
               <div className="flex-1 text-right">
                 <p className="text-xs text-gray-500 mb-0.5">{t('admin.matches.team2')}</p>
-                <p className="text-white text-sm font-medium leading-tight">{match.player3?.full_name}</p>
-                <p className="text-white text-sm font-medium leading-tight">{match.player4?.full_name}</p>
+                <p className="text-white text-sm font-medium leading-tight">
+                  {match.player3?.full_name}
+                  {hasElo && <EloDelta before={match.player3_rating_before} after={match.player3_rating_after} />}
+                </p>
+                <p className="text-white text-sm font-medium leading-tight">
+                  {match.player4?.full_name}
+                  {hasElo && <EloDelta before={match.player4_rating_before} after={match.player4_rating_after} />}
+                </p>
               </div>
             </div>
           </div>

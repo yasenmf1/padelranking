@@ -53,6 +53,10 @@ export default function Profile() {
         rating, league, created_at, match_id,
         match:matches(
           played_at, player1_id, player2_id, player3_id, player4_id,
+          player1_rating_before, player1_rating_after,
+          player2_rating_before, player2_rating_after,
+          player3_rating_before, player3_rating_after,
+          player4_rating_before, player4_rating_after,
           player1:profiles!matches_player1_id_fkey(full_name),
           player2:profiles!matches_player2_id_fkey(full_name),
           player3:profiles!matches_player3_id_fkey(full_name),
@@ -294,6 +298,46 @@ export default function Profile() {
 
       {/* ELO Chart */}
       <EloChart history={ratingHistory} profileId={profile.id} />
+
+      {/* Recent matches with ELO delta */}
+      {ratingHistory.length > 0 && (
+        <div className="card space-y-3">
+          <h3 className="text-base font-bold text-white">Последни мачове</h3>
+          <div className="space-y-2">
+            {[...ratingHistory].reverse().slice(0, 8).map((entry, i) => {
+              const m = entry.match
+              if (!m) return null
+              // Find which player slot this profile is
+              const pid = profile.id
+              let before, after
+              if (m.player1_id === pid) { before = m.player1_rating_before; after = m.player1_rating_after }
+              else if (m.player2_id === pid) { before = m.player2_rating_before; after = m.player2_rating_after }
+              else if (m.player3_id === pid) { before = m.player3_rating_before; after = m.player3_rating_after }
+              else if (m.player4_id === pid) { before = m.player4_rating_before; after = m.player4_rating_after }
+              const delta = (before != null && after != null) ? after - before : null
+              const won = delta != null && delta > 0
+              const team1 = [m.player1?.full_name, m.player2?.full_name].filter(Boolean).join(' & ')
+              const team2 = [m.player3?.full_name, m.player4?.full_name].filter(Boolean).join(' & ')
+              const date = new Date(m.played_at).toLocaleDateString('bg-BG', { day: 'numeric', month: 'short' })
+              return (
+                <div key={entry.match_id ?? i} className="flex items-center justify-between gap-3 p-2.5 bg-[#111111] rounded-lg border border-[#1e1e1e]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white truncate">{team1} <span className="text-gray-600">vs</span> {team2}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{date}</p>
+                  </div>
+                  {delta != null ? (
+                    <span className={`text-sm font-black flex-shrink-0 ${won ? 'text-green-400' : 'text-red-400'}`}>
+                      {won ? '↑' : '↓'}{delta > 0 ? '+' : ''}{delta}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-600 flex-shrink-0">{entry.rating} ELO</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Self-assessment card */}
       <div className="card space-y-4">
