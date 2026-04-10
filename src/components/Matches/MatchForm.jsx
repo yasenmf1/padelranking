@@ -214,7 +214,12 @@ export default function MatchForm({ onSubmitted }) {
       if (onSubmitted) onSubmitted()
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      setError(err.message || t('matchForm.errorGeneral'))
+      // Unique constraint violation (23505) = duplicate match within 10 minutes
+      if (err.code === '23505' || err.message?.includes('idx_unique_match')) {
+        setError('Този мач вече е записан. Не можеш да запишеш същия мач два пъти в рамките на 10 минути.')
+      } else {
+        setError(err.message || t('matchForm.errorGeneral'))
+      }
     } finally {
       submittingRef.current = false
       setSubmitting(false)
