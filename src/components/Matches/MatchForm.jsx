@@ -175,6 +175,7 @@ export default function MatchForm({ onSubmitted }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    console.log('MATCH SUBMIT CALLED', Date.now())
     if (submittingRef.current) return  // synchronous guard against double-submit
     setError('')
     if (!allPlayersSelected) { setError(t('matchForm.errorPlayers')); return }
