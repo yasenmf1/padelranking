@@ -15,10 +15,17 @@ export default function Register() {
   const navigate = useNavigate()
 
   const [clubs, setClubs] = useState([])
+  const [selectedCity, setSelectedCity] = useState('')
   const [form, setForm] = useState({
     email: '', password: '', confirmPassword: '',
     full_name: '', username: '', phone: '', club_id: ''
   })
+
+  const CITIES = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград']
+
+  const filteredClubs = selectedCity
+    ? clubs.filter(c => c.city === selectedCity)
+    : clubs
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState('idle')
@@ -74,7 +81,8 @@ export default function Register() {
     try {
       await register(form.email, form.password, {
         full_name: form.full_name, username: form.username,
-        phone: form.phone, club_id: form.club_id ? parseInt(form.club_id) : null
+        phone: form.phone,
+        club_id: (form.club_id && form.club_id !== 'other') ? parseInt(form.club_id) : null
       })
       navigate('/questionnaire')
     } catch (err) {
@@ -162,12 +170,25 @@ export default function Register() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('register.city')}</label>
+              <select
+                value={selectedCity}
+                onChange={e => { setSelectedCity(e.target.value); setForm(p => ({ ...p, club_id: '' })) }}
+                className="input-dark"
+              >
+                <option value="">{t('register.cityPlaceholder')}</option>
+                {CITIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('register.club')}</label>
               <select name="club_id" value={form.club_id} onChange={handleChange} className="input-dark">
                 <option value="">{t('common.noClub')}</option>
-                {clubs.map(club => (
-                  <option key={club.id} value={club.id}>{club.name} ({club.city})</option>
+                {filteredClubs.map(club => (
+                  <option key={club.id} value={club.id}>{club.name}</option>
                 ))}
+                <option value="other">{t('register.clubOther')}</option>
               </select>
             </div>
 

@@ -48,7 +48,7 @@ function MatchmakingForm({ onPublished }) {
 
   const [form, setForm] = useState({
     city: 'София', club: '', date: new Date().toISOString().split('T')[0],
-    time: '10:00', players_needed: 3,
+    time: '10:00', players_needed: 3, level_preference: 'all',
   })
   const [step,         setStep]         = useState('form') // 'form' | 'notify'
   const [notifyTarget, setNotifyTarget] = useState('same') // 'same' | 'other' | 'all'
@@ -75,14 +75,15 @@ function MatchmakingForm({ onPublished }) {
       dt.setHours(dt.getHours() + 2)
 
       const payload = {
-        user_id:        profile.id,
-        city:           form.city,
-        club:           form.club.trim(),
-        date:           form.date,
-        time:           form.time,
-        players_needed: form.players_needed,
-        status:         'open',
-        expires_at:     dt.toISOString(),
+        user_id:          profile.id,
+        city:             form.city,
+        club:             form.club.trim(),
+        date:             form.date,
+        time:             form.time,
+        players_needed:   form.players_needed,
+        level_preference: form.level_preference,
+        status:           'open',
+        expires_at:       dt.toISOString(),
       }
       console.log('[Matchmaking] insert payload:', payload)
 
@@ -279,6 +280,28 @@ function MatchmakingForm({ onPublished }) {
         </div>
       </div>
 
+      {/* Level preference */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">Ниво</label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { val: 'similar',  label: 'Сходно',    icon: '🎯' },
+            { val: 'stronger', label: 'По-силни',  icon: '💪' },
+            { val: 'all',      label: 'Всички',    icon: '🌍' },
+          ].map(({ val, label, icon }) => (
+            <button key={val} type="button" onClick={() => set('level_preference', val)}
+              className={`py-2.5 rounded-xl text-xs font-bold border transition-colors flex flex-col items-center gap-1 ${
+                form.level_preference === val
+                  ? 'bg-[#CCFF00] text-black border-[#CCFF00]'
+                  : 'bg-[#111111] text-gray-400 border-[#2a2a2a] hover:border-[#CCFF00]/40'
+              }`}>
+              <span>{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button type="submit"
         className="btn-neon w-full flex items-center justify-center gap-2">
         Продължи →
@@ -353,10 +376,15 @@ function RequestCard({ req, myId, onClose }) {
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/20">
           👥 {playersBadge(req.players_needed)}
         </span>
+        {req.level_preference && req.level_preference !== 'all' && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a]">
+            {req.level_preference === 'similar' ? '🎯 Сходно ниво' : '💪 По-силни'}
+          </span>
+        )}
       </div>
     </div>
   )

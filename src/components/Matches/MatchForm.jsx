@@ -268,11 +268,18 @@ export default function MatchForm({ onSubmitted }) {
         </div>
       </div>
 
-      <div className="relative">
-        <div className="border-t border-[#2a2a2a]"></div>
-        <span className="absolute left-1/2 -translate-x-1/2 -top-3 bg-[#111] px-3 text-xs text-gray-600 font-semibold uppercase tracking-widest">
-          {t('matchForm.versus')}
-        </span>
+      <div className="relative flex items-center gap-3">
+        <div className="flex-1 border-t border-[#2a2a2a]"></div>
+        <button
+          type="button"
+          onClick={() => { setPartner(opponent1); setOpponent1(partner) }}
+          disabled={!partner && !opponent1}
+          title={t('matchForm.swapTeams')}
+          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1e1e1e] text-gray-400 border border-[#2a2a2a] hover:border-[#CCFF00]/40 hover:text-[#CCFF00] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {t('matchForm.swapTeams')}
+        </button>
+        <div className="flex-1 border-t border-[#2a2a2a]"></div>
       </div>
 
       {/* Team 2 */}

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import { supabase } from '../../lib/supabase'
 import NotificationBell from './NotificationBell'
 
 const BG_PADEL_TOUR_URL = 'https://bgpadeltour.com/bg'
@@ -12,6 +13,24 @@ export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [matchmakingDot, setMatchmakingDot] = useState(false)
+
+  useEffect(() => {
+    if (!profile) return
+    const lastSeen = localStorage.getItem('matchmaking_last_seen') || '1970-01-01T00:00:00Z'
+    const userCity = profile.clubs?.city || null
+
+    supabase
+      .from('match_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .gt('expires_at', new Date().toISOString())
+      .gt('created_at', lastSeen)
+      .neq('user_id', profile.id)
+      .then(({ count }) => {
+        setMatchmakingDot((count || 0) > 0)
+      })
+  }, [profile])
 
   const navLinks = [
     { to: '/', label: t('nav.home') },
@@ -96,13 +115,17 @@ export default function Navbar() {
             {/* Matchmaking */}
             <Link
               to="/matchmaking"
-              className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 ${
+              onClick={() => { localStorage.setItem('matchmaking_last_seen', new Date().toISOString()); setMatchmakingDot(false) }}
+              className={`relative px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 ${
                 location.pathname === '/matchmaking'
                   ? 'bg-[#CCFF00] text-black'
                   : 'bg-[#CCFF00]/10 text-[#CCFF00] hover:bg-[#CCFF00]/20'
               }`}
             >
               🎾 <span>Търся мач</span>
+              {matchmakingDot && location.pathname !== '/matchmaking' && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#111111]" />
+              )}
             </Link>
 
             {/* Language switcher */}
@@ -191,14 +214,17 @@ export default function Navbar() {
             )}
             <Link
               to="/matchmaking"
-              onClick={() => setMenuOpen(false)}
-              className={`block px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
+              onClick={() => { setMenuOpen(false); localStorage.setItem('matchmaking_last_seen', new Date().toISOString()); setMatchmakingDot(false) }}
+              className={`relative flex items-center justify-between px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
                 location.pathname === '/matchmaking'
                   ? 'bg-[#CCFF00] text-black'
                   : 'text-[#CCFF00] bg-[#CCFF00]/5 hover:bg-[#CCFF00]/10'
               }`}
             >
-              🎾 Търся мач
+              <span>🎾 Търся мач</span>
+              {matchmakingDot && location.pathname !== '/matchmaking' && (
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0" />
+              )}
             </Link>
             <a
               href={BG_PADEL_TOUR_URL}

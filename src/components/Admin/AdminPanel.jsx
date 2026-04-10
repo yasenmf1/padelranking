@@ -31,6 +31,8 @@ export default function AdminPanel() {
   const playerSearchRef = useRef(null)
   const [playerMessages, setPlayerMessages] = useState({}) // { [matchId]: text }
   const [playerMsgLoading, setPlayerMsgLoading] = useState({}) // { [matchId]: bool }
+  const [editingPlayer, setEditingPlayer] = useState(null) // player being edited
+  const [editForm, setEditForm] = useState({ full_name: '', rating: '' })
 
   const TABS = [
     { key: 'players',  label: t('admin.tabs.players') },
@@ -132,6 +134,27 @@ export default function AdminPanel() {
       showSuccess(t('admin.players.deleteSuccess'))
     } catch (err) { setError(err.message) }
     finally { setActionLoading(p => ({ ...p, [player.id]: null })) }
+  }
+
+  async function savePlayerEdit() {
+    if (!editingPlayer) return
+    const newRating = parseInt(editForm.rating)
+    if (!editForm.full_name.trim() || isNaN(newRating) || newRating < 0) return
+    setActionLoading(p => ({ ...p, [editingPlayer.id]: 'editing' }))
+    setError('')
+    try {
+      const { error } = await supabase.from('profiles').update({
+        full_name: editForm.full_name.trim(),
+        rating: newRating,
+      }).eq('id', editingPlayer.id)
+      if (error) throw error
+      setPlayers(prev => prev.map(p =>
+        p.id === editingPlayer.id ? { ...p, full_name: editForm.full_name.trim(), rating: newRating } : p
+      ))
+      showSuccess(t('admin.players.editSuccess'))
+      setEditingPlayer(null)
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(p => ({ ...p, [editingPlayer.id]: null })) }
   }
 
   // ── Match actions (legacy pending → approved) ──────────
@@ -438,12 +461,14 @@ export default function AdminPanel() {
                     <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden sm:table-cell">{t('admin.players.colEmail')}</th>
                     <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colElo')}</th>
                     <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colMatches')}</th>
-                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">{t('admin.players.colDate')}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase px-4 py-3 hidden md:table-cell">{t('admin.players.colStatus')}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase px-4 py-3 hidden lg:table-cell">{t('admin.players.colDate')}</th>
                     <th className="text-center text-xs text-gray-500 uppercase px-4 py-3">{t('admin.players.colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {players.map(player => (
+                    <>
                     <tr key={player.id} className="border-b border-[#1a1a1a] hover:bg-[#181818] transition-colors">
                       <td className="px-4 py-3">
                         <p className="text-white font-medium text-sm">{player.full_name}</p>
@@ -459,19 +484,82 @@ export default function AdminPanel() {
                         <p className="text-gray-600 text-xs">{t(`leagues.${player.league}`) || player.league}</p>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-400">{player.approved_matches || 0}</td>
-                      <td className="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">{formatDate(player.created_at)}</td>
+                      <td className="px-4 py-3 hidden md:table-cell text-center">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          player.approved_matches >= 1
+                            ? 'bg-green-500/15 text-green-400'
+                            : 'bg-yellow-500/15 text-yellow-400'
+                        }`}>
+                          {player.approved_matches >= 1 ? t('admin.players.statusActive') : t('admin.players.statusPending')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-gray-500 text-xs">{formatDate(player.created_at)}</td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => deletePlayer(player)}
-                          disabled={!!actionLoading[player.id] || player.email === 'office@motamo.bg'}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          {actionLoading[player.id] === 'deleting'
-                            ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                            : t('admin.players.deleteBtn')}
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => { setEditingPlayer(player); setEditForm({ full_name: player.full_name, rating: String(player.rating) }) }}
+                            disabled={!!actionLoading[player.id]}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#CCFF00]/10 text-[#CCFF00] hover:bg-[#CCFF00]/20 border border-[#CCFF00]/30 transition-colors disabled:opacity-30"
+                          >
+                            {t('admin.players.editBtn')}
+                          </button>
+                          <button
+                            onClick={() => deletePlayer(player)}
+                            disabled={!!actionLoading[player.id] || player.email === 'office@motamo.bg'}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading[player.id] === 'deleting'
+                              ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                              : t('admin.players.deleteBtn')}
+                          </button>
+                        </div>
                       </td>
                     </tr>
+                    {editingPlayer?.id === player.id && (
+                      <tr key={`edit-${player.id}`} className="border-b border-[#2a2a2a] bg-[#111]">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div className="flex-1 min-w-40">
+                              <label className="block text-xs text-gray-500 mb-1">{t('admin.players.editNameLabel')}</label>
+                              <input
+                                type="text"
+                                value={editForm.full_name}
+                                onChange={e => setEditForm(p => ({ ...p, full_name: e.target.value }))}
+                                className="input-dark text-sm"
+                              />
+                            </div>
+                            <div className="w-28">
+                              <label className="block text-xs text-gray-500 mb-1">{t('admin.players.editEloLabel')}</label>
+                              <input
+                                type="number"
+                                value={editForm.rating}
+                                onChange={e => setEditForm(p => ({ ...p, rating: e.target.value }))}
+                                className="input-dark text-sm text-center"
+                                min="0" max="9999"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={savePlayerEdit}
+                                disabled={actionLoading[player.id] === 'editing'}
+                                className="px-4 py-2 bg-[#CCFF00] text-black text-xs font-bold rounded-lg hover:bg-[#bbee00] transition-colors disabled:opacity-50"
+                              >
+                                {actionLoading[player.id] === 'editing'
+                                  ? <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                                  : t('admin.players.editSave')}
+                              </button>
+                              <button
+                                onClick={() => setEditingPlayer(null)}
+                                className="px-4 py-2 bg-[#1e1e1e] text-gray-400 text-xs font-semibold rounded-lg border border-[#2a2a2a] hover:text-white transition-colors"
+                              >
+                                {t('admin.players.editCancel')}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </>
                   ))}
                 </tbody>
               </table>

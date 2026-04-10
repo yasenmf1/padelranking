@@ -18,7 +18,9 @@ export default function Profile() {
   const { profile, refreshProfile } = useAuth()
   const { t } = useLanguage()
   const navigate = useNavigate()
+  const CITIES = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград']
   const [clubs, setClubs] = useState([])
+  const [editCity, setEditCity] = useState('')
   const [editing, setEditing] = useState(false)
   const [showSADetails, setShowSADetails] = useState(false)
   const [form, setForm] = useState({ full_name: '', phone: '', club_id: '' })
@@ -36,6 +38,7 @@ export default function Profile() {
         phone: profile.phone || '',
         club_id: profile.club_id || ''
       })
+      setEditCity(profile.clubs?.city || '')
       fetchRatingHistory()
       fetchMatchStats()
     }
@@ -92,7 +95,7 @@ export default function Profile() {
         .update({
           full_name: form.full_name,
           phone: form.phone,
-          club_id: form.club_id ? parseInt(form.club_id) : null,
+          club_id: (form.club_id && form.club_id !== 'other') ? parseInt(form.club_id) : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', profile.id)
@@ -270,6 +273,17 @@ export default function Profile() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('profile.cityLabel')}</label>
+              <select
+                value={editCity}
+                onChange={e => { setEditCity(e.target.value); setForm(p => ({ ...p, club_id: '' })) }}
+                className="input-dark"
+              >
+                <option value="">{t('register.cityPlaceholder')}</option>
+                {CITIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('profile.clubLabel2')}</label>
               <select
                 value={form.club_id}
@@ -277,9 +291,10 @@ export default function Profile() {
                 className="input-dark"
               >
                 <option value="">{t('common.noClub')}</option>
-                {clubs.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.city})</option>
+                {(editCity ? clubs.filter(c => c.city === editCity) : clubs).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
+                <option value="other">{t('register.clubOther')}</option>
               </select>
             </div>
             <div className="flex gap-3">

@@ -16,6 +16,7 @@ export default function Ladder() {
     return translated === key ? league : translated
   }
 
+  const [rankingType, setRankingType] = useState('official') // 'official' | 'provisional'
   const [players, setPlayers] = useState([])
   const [clubs, setClubs] = useState([])
   const [selectedLeague, setSelectedLeague] = useState('all')
@@ -50,10 +51,11 @@ export default function Ladder() {
   async function fetchPlayers() {
     setLoading(true)
     try {
+      // Load all players with >=1 approved match, split client-side by rankingType
       const { data } = await supabase
         .from('profiles')
         .select('*, clubs(id, name, city)')
-        .eq('is_ranked', true)
+        .gte('approved_matches', 1)
         .not('self_assessment_score', 'is', null)
         .order('rating', { ascending: false })
       if (data) setPlayers(data)
@@ -64,7 +66,12 @@ export default function Ladder() {
     }
   }
 
-  const filtered = players.filter(p => {
+  // Split by ranking type first
+  const officialPlayers = players.filter(p => p.approved_matches >= 5 && p.is_ranked)
+  const provisionalPlayers = players.filter(p => p.approved_matches >= 1 && p.approved_matches < 5)
+  const rankPool = rankingType === 'official' ? officialPlayers : provisionalPlayers
+
+  const filtered = rankPool.filter(p => {
     const leagueMatch = selectedLeague === 'all' || p.league === selectedLeague
     const clubMatch = !selectedClub || p.club_id === parseInt(selectedClub)
     const searchMatch = !searchQuery ||
@@ -213,6 +220,41 @@ export default function Ladder() {
         <h1 className="text-2xl font-bold text-white">{t('ladder.title')}</h1>
         <p className="text-gray-400 mt-0.5">{t('ladder.subtitle')}</p>
       </div>
+
+      {/* Official / Provisional tabs */}
+      <div className="flex gap-2 bg-[#111111] p-1 rounded-xl border border-[#2a2a2a]">
+        <button
+          onClick={() => setRankingType('official')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            rankingType === 'official'
+              ? 'bg-[#CCFF00] text-black'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🏆 {t('ladder.tabOfficial')}
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${rankingType === 'official' ? 'bg-black/20 text-black' : 'bg-[#2a2a2a] text-gray-500'}`}>
+            {officialPlayers.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setRankingType('provisional')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            rankingType === 'provisional'
+              ? 'bg-[#CCFF00] text-black'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🌱 {t('ladder.tabProvisional')}
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${rankingType === 'provisional' ? 'bg-black/20 text-black' : 'bg-[#2a2a2a] text-gray-500'}`}>
+            {provisionalPlayers.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Hint */}
+      <p className="text-xs text-gray-600 -mt-1">
+        {rankingType === 'official' ? t('ladder.officialHint') : t('ladder.provisionalHint')}
+      </p>
 
       {/* League tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -388,7 +430,7 @@ export default function Ladder() {
       </div>
 
       <p className="text-xs text-gray-600 text-center">
-        {t('ladder.showing', { filtered: filtered.length, total: players.length })}
+        {t('ladder.showing', { filtered: filtered.length, total: rankPool.length })}
       </p>
 
       {/* Player modal */}
