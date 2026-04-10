@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
+import { transliteratedMatch } from '../../lib/transliterate'
 // ELO is now applied server-side via admin_resolve_match RPC
 
 const CITIES_BG = ['София', 'Пловдив', 'Варна', 'Бургас', 'Стара Загора', 'Русе', 'Плевен', 'Благоевград']
@@ -698,8 +699,8 @@ export default function AdminPanel() {
                             <div className="absolute z-10 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-xl">
                               {broadcastPlayers
                                 .filter(p =>
-                                  p.full_name?.toLowerCase().includes(playerSearch.toLowerCase()) ||
-                                  p.username?.toLowerCase().includes(playerSearch.toLowerCase())
+                                  transliteratedMatch(p.full_name, playerSearch) ||
+                                  transliteratedMatch(p.username, playerSearch)
                                 )
                                 .slice(0, 10)
                                 .map(p => (

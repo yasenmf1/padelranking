@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
+import { cyrToLat, latToCyr } from '../../lib/transliterate'
 
 function getInitials(name) {
   if (!name) return '?'
@@ -54,9 +55,15 @@ function PlayerSearch({ selected, onSelect, onClear, excludeIds, placeholder }) 
   async function search(q) {
     setQuery(q)
     if (q.length < 2) { setResults([]); setShowDropdown(false); return }
+    // Build transliterated variant for cross-script search
+    const isCyrillic = /[\u0400-\u04FF]/.test(q)
+    const alt = isCyrillic ? cyrToLat(q) : latToCyr(q)
+    const orFilter = alt && alt !== q
+      ? `full_name.ilike.%${q}%,username.ilike.%${q}%,full_name.ilike.%${alt}%,username.ilike.%${alt}%`
+      : `full_name.ilike.%${q}%,username.ilike.%${q}%`
     const { data } = await supabase
       .from('profiles').select('id, full_name, username, rating, league')
-      .or(`full_name.ilike.%${q}%,username.ilike.%${q}%`).limit(10)
+      .or(orFilter).limit(10)
     if (data) {
       setResults(data.filter(p => !excludeIds.includes(p.id)))
       setShowDropdown(true)

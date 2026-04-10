@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { getLeagueIcon, getLeagueColor } from '../../lib/elo'
+import { transliteratedMatch } from '../../lib/transliterate'
 
 export default function Ladder() {
   const { profile } = useAuth()
@@ -58,8 +59,8 @@ export default function Ladder() {
     const leagueMatch = selectedLeague === 'all' || p.league === selectedLeague
     const clubMatch = !selectedClub || p.club_id === parseInt(selectedClub)
     const searchMatch = !searchQuery ||
-      p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.username?.toLowerCase().includes(searchQuery.toLowerCase())
+      transliteratedMatch(p.full_name, searchQuery) ||
+      transliteratedMatch(p.username, searchQuery)
     return leagueMatch && clubMatch && searchMatch
   })
 
