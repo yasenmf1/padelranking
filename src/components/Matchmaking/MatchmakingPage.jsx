@@ -460,12 +460,18 @@ export default function MatchmakingPage() {
   }
 
   function subscribeRealtime() {
+    // Use unique channel name to avoid conflicts when component remounts
+    const channelName = `match_requests_live_${Date.now()}`
     channelRef.current = supabase
-      .channel('match_requests_live')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'match_requests' },
         () => fetchRequests()
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[Matchmaking] Realtime unavailable, polling disabled')
+        }
+      })
   }
 
   function handleClose(id) {

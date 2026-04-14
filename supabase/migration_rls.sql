@@ -28,6 +28,10 @@ CREATE POLICY "profiles_update_own" ON profiles
   FOR UPDATE USING (
     auth.uid() = id
     OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+  )
+  WITH CHECK (
+    auth.uid() = id
+    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
   );
 
 -- DELETE intentionally not allowed (no policy = denied)

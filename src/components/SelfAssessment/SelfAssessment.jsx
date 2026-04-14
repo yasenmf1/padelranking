@@ -67,6 +67,8 @@ export default function SelfAssessment() {
       const newRating = getInitialRating(score)
       const newLeague = getLeague(newRating)
 
+      console.log('[SelfAssessment] saving for user', profile.id, { score, newRating, newLeague })
+
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -74,17 +76,24 @@ export default function SelfAssessment() {
           self_assessment_data: finalAnswers,
           rating: newRating,
           league: newLeague,
+          questionnaire_done: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', profile.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('[SelfAssessment] save error:', updateError)
+        throw updateError
+      }
+
+      console.log('[SelfAssessment] saved successfully')
 
       await refreshProfile()
       setFinalScore(score)
       setFinalRating(newRating)
       setDone(true)
     } catch (err) {
+      console.error('SelfAssessment submit failed:', err)
       setError(err.message || t('selfAssessment.error'))
       setSubmitting(false)
     }
