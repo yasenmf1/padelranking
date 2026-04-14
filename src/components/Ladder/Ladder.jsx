@@ -54,7 +54,6 @@ export default function Ladder() {
       const { data } = await supabase
         .from('profiles')
         .select('*, clubs(id, name, city)')
-        .not('self_assessment_score', 'is', null)
         .order('rating', { ascending: false })
       if (data) {
         setPlayers(data)
