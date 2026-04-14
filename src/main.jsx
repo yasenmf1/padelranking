@@ -1,5 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+
+// Capture beforeinstallprompt BEFORE React mounts — the event fires early
+// and would be missed by component-level listeners added after hydration.
+window.__pwaInstallPrompt = null
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  window.__pwaInstallPrompt = e
+})
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'

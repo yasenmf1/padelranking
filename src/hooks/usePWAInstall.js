@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react'
 
 export function usePWAInstall() {
-  const [promptEvent, setPromptEvent] = useState(null)
-  const [canInstall, setCanInstall] = useState(false)
+  const [promptEvent, setPromptEvent] = useState(() => window.__pwaInstallPrompt || null)
+  const [canInstall, setCanInstall] = useState(
+    () => !!window.__pwaInstallPrompt && !window.matchMedia('(display-mode: standalone)').matches
+  )
 
   useEffect(() => {
+    // Already captured before React mounted
+    if (window.__pwaInstallPrompt) {
+      setPromptEvent(window.__pwaInstallPrompt)
+      setCanInstall(!window.matchMedia('(display-mode: standalone)').matches)
+    }
+
+    // Also listen for future fires (e.g. after install dismissed and re-triggered)
     function handler(e) {
       e.preventDefault()
+      window.__pwaInstallPrompt = e
       setPromptEvent(e)
-      setCanInstall(true)
+      setCanInstall(!window.matchMedia('(display-mode: standalone)').matches)
     }
     window.addEventListener('beforeinstallprompt', handler)
 
-    // If already installed (standalone mode), hide prompt
+    // Hide if already running as installed PWA
     const mq = window.matchMedia('(display-mode: standalone)')
     if (mq.matches) setCanInstall(false)
 
@@ -23,6 +33,7 @@ export function usePWAInstall() {
     if (!promptEvent) return null
     promptEvent.prompt()
     const { outcome } = await promptEvent.userChoice
+    window.__pwaInstallPrompt = null
     setPromptEvent(null)
     setCanInstall(false)
     return outcome // 'accepted' | 'dismissed'
