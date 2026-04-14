@@ -51,14 +51,17 @@ export default function Ladder() {
   async function fetchPlayers() {
     setLoading(true)
     try {
-      // Load all players with >=1 approved match, split client-side by rankingType
       const { data } = await supabase
         .from('profiles')
         .select('*, clubs(id, name, city)')
-        .gte('approved_matches', 1)
         .not('self_assessment_score', 'is', null)
         .order('rating', { ascending: false })
-      if (data) setPlayers(data)
+      if (data) {
+        setPlayers(data)
+        // Default to provisional if no official players
+        const hasOfficial = data.some(p => p.approved_matches >= 5 && p.is_ranked)
+        if (!hasOfficial) setRankingType('provisional')
+      }
     } catch (err) {
       console.error('Error fetching ladder:', err)
     } finally {
@@ -66,9 +69,9 @@ export default function Ladder() {
     }
   }
 
-  // Split by ranking type first
+  // Split by ranking type
   const officialPlayers = players.filter(p => p.approved_matches >= 5 && p.is_ranked)
-  const provisionalPlayers = players.filter(p => p.approved_matches >= 1 && p.approved_matches < 5)
+  const provisionalPlayers = players.filter(p => (p.approved_matches || 0) < 5)
   const rankPool = rankingType === 'official' ? officialPlayers : provisionalPlayers
 
   const filtered = rankPool.filter(p => {
@@ -353,8 +356,23 @@ export default function Ladder() {
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-gray-500">
             <div className="text-5xl mb-3">🏆</div>
-            <p className="text-lg font-medium text-white">{t('ladder.noPlayers')}</p>
-            <p className="text-sm mt-1">{t('ladder.noPlayersHint')}</p>
+            {rankingType === 'official' && officialPlayers.length === 0 ? (
+              <>
+                <p className="text-lg font-medium text-white">{t('ladder.noOfficial')}</p>
+                <p className="text-sm mt-1">{t('ladder.noOfficialHint')}</p>
+                <button
+                  onClick={() => setRankingType('provisional')}
+                  className="mt-4 px-4 py-2 bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/30 rounded-lg text-sm font-medium hover:bg-[#CCFF00]/20 transition-colors"
+                >
+                  🌱 {t('ladder.tabProvisional')} →
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-medium text-white">{t('ladder.noPlayers')}</p>
+                <p className="text-sm mt-1">{t('ladder.noPlayersHint')}</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
