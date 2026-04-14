@@ -14,6 +14,7 @@ import AdminPanel from './components/Admin/AdminPanel'
 import SplashScreen from './components/Onboarding/SplashScreen'
 import InstallBanner from './components/PWA/InstallBanner'
 import MatchmakingPage from './components/Matchmaking/MatchmakingPage'
+import ResetPassword from './components/Auth/ResetPassword'
 
 const Spinner = () => (
   <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -96,6 +97,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/questionnaire"
           element={
