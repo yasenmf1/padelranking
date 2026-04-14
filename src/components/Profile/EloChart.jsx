@@ -46,9 +46,17 @@ export default function EloChart({ history, profileId }) {
     )
   }
 
-  // Build chart data with opponent names and ELO change
-  const data = history.map((entry, idx) => {
-    const prev = idx > 0 ? history[idx - 1].rating : entry.rating
+  // Build chart data: prepend starting point (500 ELO), then each match
+  const startPoint = {
+    label: 'Старт',
+    fullDate: 'Начална точка',
+    rating: 500,
+    change: 0,
+    opponent: null,
+  }
+
+  const data = [startPoint, ...history.map((entry, idx) => {
+    const prev = idx > 0 ? history[idx - 1].rating : 500
     const change = entry.rating - prev
 
     // Determine opponent from match data
@@ -70,10 +78,10 @@ export default function EloChart({ history, profileId }) {
       label:    fmt(dateStr),
       fullDate: new Date(dateStr).toLocaleDateString('bg-BG', { day: 'numeric', month: 'long', year: 'numeric' }),
       rating:   entry.rating,
-      change:   idx === 0 ? 0 : change,
+      change,
       opponent,
     }
-  })
+  })]
 
   const ratings = data.map(d => d.rating)
   const minR = Math.min(...ratings)
@@ -82,9 +90,8 @@ export default function EloChart({ history, profileId }) {
   const domainMin = Math.max(0, minR - pad)
   const domainMax = maxR + pad
 
-  const startRating = data[0].rating
   const endRating   = data[data.length - 1].rating
-  const totalChange = endRating - startRating
+  const totalChange = endRating - 500
 
   return (
     <div className="card">
@@ -118,14 +125,12 @@ export default function EloChart({ history, profileId }) {
             tickCount={4}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2a2a2a', strokeWidth: 1 }} />
-          {startRating && (
-            <ReferenceLine
-              y={startRating}
-              stroke="#374151"
-              strokeDasharray="4 4"
-              strokeWidth={1}
-            />
-          )}
+          <ReferenceLine
+            y={500}
+            stroke="#374151"
+            strokeDasharray="4 4"
+            strokeWidth={1}
+          />
           <Line
             type="monotone"
             dataKey="rating"
@@ -140,8 +145,8 @@ export default function EloChart({ history, profileId }) {
       {/* Min/Max summary */}
       <div className="flex justify-between mt-3 pt-3 border-t border-[#2a2a2a]">
         <div className="text-center">
-          <p className="text-xs text-gray-500">Начало</p>
-          <p className="text-sm font-bold text-white">{data[0].rating}</p>
+          <p className="text-xs text-gray-500">Старт</p>
+          <p className="text-sm font-bold text-white">500</p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-500">Максимум</p>
