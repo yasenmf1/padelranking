@@ -88,7 +88,8 @@ export default function SelfAssessment() {
 
       console.log('[SelfAssessment] saved successfully')
 
-      await refreshProfile()
+      // Show results first — refreshProfile triggers ProtectedRoute re-evaluation
+      // which would redirect away before the user sees the result screen
       setFinalScore(score)
       setFinalRating(newRating)
       setDone(true)
@@ -155,7 +156,10 @@ export default function SelfAssessment() {
           </div>
 
           <button
-            onClick={() => navigate('/profile')}
+            onClick={async () => {
+              await refreshProfile()
+              navigate('/profile')
+            }}
             className="btn-neon w-full text-base py-3"
           >
             {t('selfAssessment.toProfile')}
