@@ -14,6 +14,14 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [matchmakingDot, setMatchmakingDot] = useState(false)
+  const [canInstall, setCanInstall] = useState(!!window.__pwaInstallPrompt)
+
+  // Re-check when beforeinstallprompt fires after component mounts
+  useEffect(() => {
+    function onPrompt() { setCanInstall(true) }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
+  }, [])
 
   useEffect(() => {
     if (!profile) return
@@ -54,6 +62,17 @@ export default function Navbar() {
 
   function toggleLang() {
     setLang(lang === 'bg' ? 'en' : 'bg')
+  }
+
+  async function handleInstall() {
+    const prompt = window.__pwaInstallPrompt
+    if (!prompt) return
+    prompt.prompt()
+    const { outcome } = await prompt.userChoice
+    if (outcome === 'accepted') {
+      window.__pwaInstallPrompt = null
+      setCanInstall(false)
+    }
   }
 
   return (
@@ -127,6 +146,17 @@ export default function Navbar() {
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#111111]" />
               )}
             </Link>
+
+            {/* PWA install */}
+            {canInstall && (
+              <button
+                onClick={handleInstall}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-[#CCFF00]/40 text-[#CCFF00] hover:bg-[#CCFF00]/10 transition-colors flex items-center gap-1"
+                title="Инсталирай приложението"
+              >
+                📲 Инсталирай
+              </button>
+            )}
 
             {/* Language switcher */}
             <button
@@ -236,6 +266,15 @@ export default function Navbar() {
               🏆 BG Padel Tour — {t('nav.tournaments')}
             </a>
             <div className="border-t border-[#2a2a2a] my-2"></div>
+            {/* PWA install mobile */}
+            {canInstall && (
+              <button
+                onClick={() => { setMenuOpen(false); handleInstall() }}
+                className="block w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-[#CCFF00] hover:bg-[#CCFF00]/10 transition-colors"
+              >
+                📲 Инсталирай приложението
+              </button>
+            )}
             {/* Language switcher mobile */}
             <button
               onClick={() => { toggleLang(); setMenuOpen(false) }}
