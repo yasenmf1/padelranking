@@ -20,8 +20,25 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
+        id: '/',
         start_url: '/',
         lang: 'bg',
+        screenshots: [
+          {
+            src: 'screenshot-desktop.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Padel Ranking Desktop'
+          },
+          {
+            src: 'screenshot-mobile.png',
+            sizes: '390x844',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Padel Ranking Mobile'
+          }
+        ],
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
