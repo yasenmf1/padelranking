@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
@@ -468,8 +468,8 @@ export default function AdminPanel() {
                 </thead>
                 <tbody>
                   {players.map(player => (
-                    <>
-                    <tr key={player.id} className="border-b border-[#1a1a1a] hover:bg-[#181818] transition-colors">
+                    <React.Fragment key={player.id}>
+                    <tr className="border-b border-[#1a1a1a] hover:bg-[#181818] transition-colors">
                       <td className="px-4 py-3">
                         <p className="text-white font-medium text-sm">{player.full_name}</p>
                         <p className="text-gray-500 text-xs">@{player.username}</p>
@@ -559,7 +559,7 @@ export default function AdminPanel() {
                         </td>
                       </tr>
                     )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
