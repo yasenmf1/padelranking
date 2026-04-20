@@ -15,6 +15,7 @@ import SplashScreen from './components/Onboarding/SplashScreen'
 import InstallBanner from './components/PWA/InstallBanner'
 import MatchmakingPage from './components/Matchmaking/MatchmakingPage'
 import ResetPassword from './components/Auth/ResetPassword'
+import AuthCallback from './components/Auth/AuthCallback'
 
 const Spinner = () => (
   <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -98,6 +99,7 @@ export default function App() {
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           path="/questionnaire"
           element={

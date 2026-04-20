@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
+import SocialButtons from './SocialButtons'
 
 function generateCandidates(base) {
   const clean = base.toLowerCase().replace(/[^a-z0-9_]/g, '')
@@ -107,6 +108,14 @@ export default function Register() {
 
         <div className="card">
           <h2 className="text-xl font-bold text-white mb-6">{t('register.title')}</h2>
+
+          <SocialButtons />
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[#2a2a2a]"></div>
+            <span className="text-gray-600 text-xs font-medium">или с имейл</span>
+            <div className="flex-1 h-px bg-[#2a2a2a]"></div>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>
