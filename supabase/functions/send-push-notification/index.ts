@@ -25,12 +25,18 @@ serve(async (req: Request) => {
 
     webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 
-    const { city, title, body, url } = await req.json()
+    const { city, user_ids, title, body, url, tag } = await req.json()
 
     // Use service role client to read push_subscriptions (bypasses RLS)
     const admin = createClient(SUPABASE_URL, SERVICE_KEY)
     let query = admin.from('push_subscriptions').select('endpoint, p256dh, auth')
-    if (city) query = query.eq('city', city)
+    if (user_ids?.length) {
+      // Target specific users (e.g. match participants)
+      query = query.in('user_id', user_ids)
+    } else if (city) {
+      // Broadcast to a city (e.g. matchmaking)
+      query = query.eq('city', city)
+    }
     const { data: subs } = await query
 
     if (!subs?.length) {
@@ -38,7 +44,7 @@ serve(async (req: Request) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const payload = JSON.stringify({ title, body, url: url || '/', tag: 'matchmaking' })
+    const payload = JSON.stringify({ title, body, url: url || '/', tag: tag || 'general' })
     let sent = 0
     const stale: string[] = []
 

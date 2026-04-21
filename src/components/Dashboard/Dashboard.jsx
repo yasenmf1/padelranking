@@ -12,12 +12,23 @@ export default function Dashboard() {
   const [recentMatches, setRecentMatches] = useState([])
   const [stats, setStats] = useState({ total: 0, wins: 0, losses: 0 })
   const [loading, setLoading] = useState(true)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (profile) {
       fetchData()
+      fetchPending()
     }
   }, [profile])
+
+  async function fetchPending() {
+    const { count } = await supabase
+      .from('matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id},player3_id.eq.${profile.id},player4_id.eq.${profile.id}`)
+    setPendingCount(count || 0)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -88,6 +99,27 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      {/* Pending matches banner */}
+      {pendingCount > 0 && (
+        <Link
+          to="/matches"
+          className="flex items-center justify-between gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl hover:bg-amber-500/15 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⏳</span>
+            <div>
+              <p className="text-amber-400 font-semibold text-sm">
+                {pendingCount === 1
+                  ? 'Имаш 1 мач чакащ одобрение'
+                  : `Имаш ${pendingCount} мача чакащи одобрение`}
+              </p>
+              <p className="text-amber-500/70 text-xs mt-0.5">Влез в Мачове и потвърди резултата</p>
+            </div>
+          </div>
+          <span className="text-amber-400 font-semibold text-sm whitespace-nowrap">Виж сега →</span>
+        </Link>
+      )}
+
       {/* Welcome header */}
       <div className="flex items-center justify-between">
         <div>

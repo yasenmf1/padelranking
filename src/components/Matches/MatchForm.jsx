@@ -209,9 +209,24 @@ export default function MatchForm({ onSubmitted }) {
       }).select('id').single()
       if (insertError) throw insertError
 
-      // Notify opponents (non-blocking)
+      // In-app + push notifications (non-blocking)
       if (insertData?.id) {
         supabase.rpc('notify_match_submitted', { p_match_id: insertData.id }).catch(() => {})
+
+        // Push notification to all 4 players
+        const playerIds = [
+          profile.id, partner?.id, opponent1?.id, opponent2?.id
+        ].filter(Boolean)
+
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            user_ids: playerIds,
+            title: 'Нов мач за одобрение! 🎾',
+            body: 'Имаш нов мач записан. Влез в padelranking.info за да го одобриш.',
+            url: '/matches',
+            tag: 'match-pending',
+          }
+        }).catch(() => {})
       }
       setSuccess(true)
       setPartner(null); setOpponent1(null); setOpponent2(null)
