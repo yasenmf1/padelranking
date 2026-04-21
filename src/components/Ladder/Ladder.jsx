@@ -407,9 +407,13 @@ export default function Ladder() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0 ${isCurrentUser ? 'bg-[#CCFF00]' : 'bg-[#444]'}`}>
-                            {player.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
+                            {player.avatar_url ? (
+                            <img src={player.avatar_url} alt={player.full_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                          ) : (
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0 ${isCurrentUser ? 'bg-[#CCFF00]' : 'bg-[#444]'}`}>
+                              {player.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                          )}
                           <div>
                             <p className={`font-medium text-sm ${isCurrentUser ? 'text-[#CCFF00]' : 'text-white'}`}>
                               {player.full_name}
@@ -463,9 +467,13 @@ export default function Ladder() {
             {/* Modal header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
-                  {selectedPlayer.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                </div>
+                {selectedPlayer.avatar_url ? (
+                  <img src={selectedPlayer.avatar_url} alt={selectedPlayer.full_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
+                    {selectedPlayer.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-white">{selectedPlayer.full_name}</p>
                   <p className="text-xs text-gray-500">
