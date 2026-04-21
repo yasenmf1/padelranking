@@ -60,6 +60,23 @@ export default function Navbar() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
+  function NavAvatar() {
+    if (profile?.avatar_url) {
+      return (
+        <img
+          src={profile.avatar_url}
+          alt={profile.full_name}
+          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+        />
+      )
+    }
+    return (
+      <div className="w-8 h-8 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
+        {getInitials(profile?.full_name)}
+      </div>
+    )
+  }
+
   function toggleLang() {
     setLang(lang === 'bg' ? 'en' : 'bg')
   }
@@ -172,9 +189,7 @@ export default function Navbar() {
 
             {/* Profile */}
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
-                {getInitials(profile?.full_name)}
-              </div>
+              <NavAvatar />
               <span className="text-sm text-gray-300">{profile?.username || profile?.full_name}</span>
             </Link>
             <button
@@ -210,9 +225,7 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#1e1e1e] transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-[#CCFF00] flex items-center justify-center text-black font-bold text-sm">
-                {getInitials(profile?.full_name)}
-              </div>
+              <NavAvatar />
               <div>
                 <div className="text-white text-sm font-medium">{profile?.full_name}</div>
                 <div className="text-gray-500 text-xs">@{profile?.username}</div>
