@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -29,6 +29,9 @@ export default function Profile() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [ratingHistory, setRatingHistory] = useState([])
   const [matchStats, setMatchStats] = useState({ total: 0, wins: 0, losses: 0 })
+  const [avatarLoading, setAvatarLoading] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     fetchClubs()
@@ -117,6 +120,46 @@ export default function Profile() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setAvatarError('Изберете снимка (JPG, PNG, WebP)'); return }
+    if (file.size > 5 * 1024 * 1024) { setAvatarError('Снимката трябва да е под 5MB'); return }
+
+    setAvatarLoading(true)
+    setAvatarError('')
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${profile.id}/avatar.${ext}`
+
+      const { error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type })
+
+      if (uploadErr) throw uploadErr
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+
+      // Cache-bust so the browser doesn't show the old image
+      const urlWithBust = `${publicUrl}?t=${Date.now()}`
+
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: urlWithBust, updated_at: new Date().toISOString() })
+        .eq('id', profile.id)
+
+      if (updateErr) throw updateErr
+      await refreshProfile()
+    } catch (err) {
+      console.error('Avatar upload error:', err)
+      setAvatarError(err.message || 'Грешка при качване на снимката')
+    } finally {
+      setAvatarLoading(false)
+      // Reset input so the same file can be re-selected after an error
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   if (!profile) return null
 
   const league = profile.league || 'Начинаещи'
@@ -149,11 +192,52 @@ export default function Profile() {
       {/* Profile card */}
       <div className="card">
         <div className="flex items-start gap-4 mb-5">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-black font-black text-xl flex-shrink-0"
-            style={{ backgroundColor: '#CCFF00' }}
-          >
-            {getInitials(profile.full_name)}
+          {/* Avatar — click to upload */}
+          <div className="flex-shrink-0 relative">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarLoading}
+              className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center relative group focus:outline-none"
+              title="Смени снимката"
+            >
+              {avatarLoading ? (
+                <div className="w-16 h-16 rounded-full bg-[#CCFF00]/20 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-[#CCFF00] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : profile.avatar_url ? (
+                <>
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.full_name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                  <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-black font-black text-xl group-hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: '#CCFF00' }}
+                >
+                  {getInitials(profile.full_name)}
+                </div>
+              )}
+            </button>
+            {avatarError && (
+              <p className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs text-red-400">{avatarError}</p>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold text-white">{profile.full_name}</h2>
