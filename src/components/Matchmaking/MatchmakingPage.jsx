@@ -98,14 +98,17 @@ function MatchmakingForm({ onPublished }) {
                      : notifyTarget === 'other' ? notifyCity
                      : form.city
 
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          city:  pushCity,
-          title: '🎾 Нова заявка за мач!',
-          body:  `${profile.full_name?.split(' ')[0]} търси мач в ${form.club} в ${form.time}`,
-          url:   '/matchmaking',
-        },
-      }).catch(e => console.warn('[Matchmaking] push error:', e))
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        supabase.functions.invoke('send-push-notification', {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+          body: {
+            city:  pushCity,
+            title: '🎾 Нова заявка за мач!',
+            body:  `${profile.full_name?.split(' ')[0]} търси мач в ${form.club} в ${form.time}`,
+            url:   '/matchmaking',
+          },
+        }).catch(e => console.warn('[Matchmaking] push error:', e))
+      })
 
       onPublished?.()
     } catch (err) {

@@ -213,7 +213,9 @@ export default function MatchForm({ onSubmitted }) {
 
       const userIds = [profile.id, partner.id, opponent1.id, opponent2.id]
       console.log('[3] Sending push to:', userIds)
+      const { data: { session } } = await supabase.auth.getSession()
       const pushResult = await supabase.functions.invoke('send-push-notification', {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
         body: {
           user_ids: userIds,
           title: 'Нов мач за одобрение! 🎾',
