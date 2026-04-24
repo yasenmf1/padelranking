@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { supabase } from '../../lib/supabase'
 import { cyrToLat, latToCyr } from '../../lib/transliterate'
+import Toast from '../UI/Toast'
 
 function getInitials(name) {
   if (!name) return '?'
@@ -120,7 +121,7 @@ export default function MatchForm({ onSubmitted }) {
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [toast, setToast] = useState(false)
 
   const allPlayersSelected = !!partner && !!opponent1 && !!opponent2
 
@@ -180,22 +181,22 @@ export default function MatchForm({ onSubmitted }) {
     return null
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    console.log('MATCH SUBMIT CALLED', Date.now())
-    if (submittingRef.current) return  // synchronous guard against double-submit
-    setError('')
-    if (!allPlayersSelected) { setError(t('matchForm.errorPlayers')); return }
-    const setsErr = validateSets()
-    if (setsErr) { setError(setsErr); return }
-    const winner = determineWinner()
-    if (!winner) { setError(t('matchForm.errorNoWinner')); return }
+  async function handleSubmit() {
+    if (submittingRef.current) return
     submittingRef.current = true
+    setError('')
+    if (!allPlayersSelected) { submittingRef.current = false; setError(t('matchForm.errorPlayers')); return }
+    const setsErr = validateSets()
+    if (setsErr) { submittingRef.current = false; setError(setsErr); return }
+    const winner = determineWinner()
+    if (!winner) { submittingRef.current = false; setError(t('matchForm.errorNoWinner')); return }
     setSubmitting(true)
     try {
       const setsData = sets.filter(s => s.p1 !== '' && s.p2 !== '').map(s => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
       const winnerId = winner === 'team1' ? profile.id : opponent1.id
-      const { data: insertData, error: insertError } = await supabase.from('matches').insert({
+
+      console.log('[1] Starting insert...')
+      const { error: insertError } = await supabase.from('matches').insert({
         player1_id: profile.id, player2_id: partner.id,
         player3_id: opponent1.id, player4_id: opponent2.id,
         winner_id: winnerId, match_type: matchType, sets_data: setsData,
@@ -206,35 +207,29 @@ export default function MatchForm({ onSubmitted }) {
         club_id: clubId ? parseInt(clubId) : null,
         played_at: new Date(playedAt).toISOString(), submitted_by: profile.id,
         admin_note: notes || null
-      }).select('id').single()
+      })
+      console.log('[2] Insert result:', insertError)
       if (insertError) throw insertError
 
-      // In-app + push notifications (non-blocking)
-      if (insertData?.id) {
-        supabase.rpc('notify_match_submitted', { p_match_id: insertData.id }).catch(() => {})
+      const userIds = [profile.id, partner.id, opponent1.id, opponent2.id]
+      console.log('[3] Sending push to:', userIds)
+      const pushResult = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          user_ids: userIds,
+          title: 'Нов мач за одобрение! 🎾',
+          body: 'Имаш нов мач записан. Влез за да го одобриш.',
+          url: '/matches',
+          tag: 'match-pending',
+        }
+      })
+      console.log('[4] Push result:', pushResult)
 
-        // Push notification to all 4 players
-        const playerIds = [
-          profile.id, partner?.id, opponent1?.id, opponent2?.id
-        ].filter(Boolean)
-
-        supabase.functions.invoke('send-push-notification', {
-          body: {
-            user_ids: playerIds,
-            title: 'Нов мач за одобрение! 🎾',
-            body: 'Имаш нов мач записан. Влез в padelranking.info за да го одобриш.',
-            url: '/matches',
-            tag: 'match-pending',
-          }
-        }).catch(() => {})
-      }
-      setSuccess(true)
+      setToast(true)
       setPartner(null); setOpponent1(null); setOpponent2(null)
       setSets([{ p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' }])
       setMatchType('bo3'); setClubId(''); setNotes('')
       setPlayedAt(new Date().toISOString().split('T')[0])
       if (onSubmitted) onSubmitted()
-      setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       // Unique constraint violation (23505) = duplicate match within 10 minutes
       if (err.code === '23505' || err.message?.includes('idx_unique_match')) {
@@ -253,14 +248,17 @@ export default function MatchForm({ onSubmitted }) {
   const usedIds = [profile?.id, partner?.id, opponent1?.id, opponent2?.id].filter(Boolean)
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-6">
+    <>
+      {toast && (
+        <Toast
+          message="Мачът е изпратен за одобрение! Противниците ще бъдат уведомени."
+          duration={4000}
+          onClose={() => setToast(false)}
+        />
+      )}
+    <form className="card space-y-6">
       <h2 className="text-lg font-bold text-white">{t('matchForm.title')}</h2>
 
-      {success && (
-        <div className="p-3 bg-[#CCFF00]/10 border border-[#CCFF00]/30 rounded-lg text-[#CCFF00] text-sm font-medium">
-          {t('matchForm.success')}
-        </div>
-      )}
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>
       )}
@@ -390,12 +388,13 @@ export default function MatchForm({ onSubmitted }) {
           className="input-dark resize-none" rows={2} placeholder={t('matchForm.notesPlaceholder')} />
       </div>
 
-      <button type="submit" disabled={submitting || !allPlayersSelected}
+      <button type="button" onClick={handleSubmit} disabled={submitting || !allPlayersSelected}
         className="btn-neon w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
         {submitting ? (
           <><div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>{t('matchForm.submitting')}</>
         ) : t('matchForm.submitBtn')}
       </button>
     </form>
+    </>
   )
 }

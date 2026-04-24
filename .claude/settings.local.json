@@ -4,7 +4,12 @@
       "Bash(gh auth:*)",
       "Bash(node generate-icons.cjs)",
       "Bash(npm run:*)",
-      "Bash(clip)"
+      "Bash(clip)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(xargs grep *)",
+      "Bash(supabase functions *)"
     ]
   }
 }
